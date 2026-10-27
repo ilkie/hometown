@@ -144,11 +144,11 @@ const TW=100, TH=50;
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const SPR={}; let pending=0;
 function loadImg(src){ const im=new Image(); pending++; im.onload=im.onerror=()=>{ if(--pending===0) requestDraw(); }; im.src=src; return im; }
-for(const k in DATA.sprites){ const s=DATA.sprites[k]; SPR[k]={im:loadImg('assets/tiles/'+s.f),ax:s.ax,ay:s.ay,sw:s.w,sh:s.h}; }
+for(const k in DATA.sprites){ const s=DATA.sprites[k]; SPR[k]={im:loadImg('assets/tiles/'+s.f),ax:s.ax,ay:s.ay,sw:s.w,sh:s.h}; if(s.snowf) SPR['s|'+k]={im:loadImg('assets/tiles/'+s.snowf),ax:s.ax,ay:s.ay,sw:s.w,sh:s.h}; }
 /* Objects: multi-tile buildings and farm pieces, drawn bottom-centred on their footprint. */
 const OBJ={};
-for(const k in COZY){ const s=COZY[k]; OBJ[k]={label:s.label,cat:s.cat,size:s.size||2}; SPR['obj:'+k]={im:loadImg('assets/gebouwen/'+s.f),ax:-s.sw/2,ay:-s.sh,sw:s.sw,sh:s.sh}; }
-for(const k in FARM){ const s=FARM[k]; OBJ[k]={label:s.label,cat:'boerderij',size:s.size||1}; SPR['obj:'+k]={im:loadImg('assets/boerderij/'+s.f),ax:-s.sw/2,ay:-s.sh+(s.nudge||0),sw:s.sw,sh:s.sh}; }
+for(const k in COZY){ const s=COZY[k]; OBJ[k]={label:s.label,cat:s.cat,size:s.size||2}; SPR['obj:'+k]={im:loadImg('assets/gebouwen/'+s.f),ax:-s.sw/2,ay:-s.sh,sw:s.sw,sh:s.sh}; if(s.snowf) SPR['s|obj:'+k]={im:loadImg('assets/gebouwen/'+s.snowf),ax:-s.sw/2,ay:-s.sh,sw:s.sw,sh:s.sh}; }
+for(const k in FARM){ const s=FARM[k]; OBJ[k]={label:s.label,cat:'boerderij',size:s.size||1}; SPR['obj:'+k]={im:loadImg('assets/boerderij/'+s.f),ax:-s.sw/2,ay:-s.sh+(s.nudge||0),sw:s.sw,sh:s.sh}; if(s.snowf) SPR['s|obj:'+k]={im:loadImg('assets/boerderij/'+s.snowf),ax:-s.sw/2,ay:-s.sh+(s.nudge||0),sw:s.sw,sh:s.sh}; }
 const ROADS=DATA.roads; ROADS[15]='crossroad'; ROADS[0]='road';
 const WATERS=DATA.waters;
 const RAILS={0:'rail_NS',1:'rail_N',2:'rail_E',4:'rail_S',8:'rail_W',5:'rail_NS',10:'rail_EW',3:'rail_NE',6:'rail_ES',12:'rail_SW',9:'rail_NW',15:'rail_X',7:'rail_NES',14:'rail_ESW',13:'rail_NSW',11:'rail_NEW'};
@@ -275,7 +275,8 @@ function groundSprite(x,y,cell){
 }
 function season(){ if(!town) return 'zomer'; return town.season||'zomer'; }
 function groundSet(){ if(town&&town.theme==='halloween') return 'grass_halloween'; const s=season(); return s==='zomer'? null : 'grass_'+s; }
-function blit(c,name,cx,cy){ const s=SPR[name]; if(!s||!s.im.complete||!s.im.naturalWidth) return; c.drawImage(s.im,cx+s.ax,cy+s.ay,s.sw,s.sh); }
+let SNOWY=false;
+function blit(c,name,cx,cy){ const s=(SNOWY&&SPR['s|'+name])||SPR[name]; if(!s||!s.im.complete||!s.im.naturalWidth) return; c.drawImage(s.im,cx+s.ax,cy+s.ay,s.sw,s.sh); }
 /* view rotation: R quarter turns. World tile (x,y) -> view tile; everything on screen is drawn in view space. */
 let R=0;
 function w2v(x,y){ switch(R){ case 1: return [-y,x]; case 2: return [-x,-y]; case 3: return [y,-x]; default: return [x,y]; } }
@@ -416,7 +417,7 @@ function toWorld(sx,sy){ return [(sx-view.ox)/view.s,(sy-view.oy)/view.s]; }
 function draw(){
   drawPending=false;
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  const L=daylight(); const gs=groundSet(); const bgc=gs==='grass_winter'?'#eef0f4':gs==='grass_herfst'?'#b0b454':gs==='grass_lente'?'#9acc62':gs==='grass_halloween'?'#73986a':'#8fc85a';
+  SNOWY=(season()==='winter')||(town&&town.theme==='kerst'); const L=daylight(); const gs=groundSet(); const bgc=gs==='grass_winter'?'#eef0f4':gs==='grass_herfst'?'#b0b454':gs==='grass_lente'?'#9acc62':gs==='grass_halloween'?'#73986a':'#8fc85a';
   ctx.fillStyle=bgc; ctx.fillRect(0,0,innerWidth,innerHeight); const glows=[];
   ctx.setTransform(dpr*view.s,0,0,dpr*view.s,dpr*view.ox,dpr*view.oy);
   ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
@@ -532,12 +533,12 @@ cv.addEventListener('wheel',e=>{ e.preventDefault(); const ns=Math.min(SMAX,Math
 const catsEl=document.getElementById('cats'), toolsEl=document.getElementById('tools'); const catBtns={}, btns={};
 for(const k in CATS){ const b=document.createElement('button'); b.type='button'; b.textContent=CATS[k]; b.addEventListener('click',()=>setCat(k,true)); catsEl.append(b); catBtns[k]=b; }
 function drawIcon(c,k){
-  c.clearRect(0,0,120,120); c.save(); c.translate(60,0); const t=TOOLS[k];
+  const keep=SNOWY; SNOWY=false; c.clearRect(0,0,120,120); c.save(); c.translate(60,0); const t=TOOLS[k];
   if(t.building){ const s=SPR['obj:'+t.building]; if(!s) return; const sc=Math.min(104/s.sw,104/s.sh); c.scale(sc,sc); blit(c,'obj:'+t.building,0,s.sh+(120/sc-s.sh)/2); }
   else if(t.variants){ c.scale(.8,.8); blit(c,'grass',0,110); blit(c,t.variants[0],0,110); }
   else if(t.over){ c.scale(.95,.95); blit(c,'grass',0,70); blit(c,t.icon,0,70); }
   else { c.scale(.95,.95); blit(c,t.icon,0,70); }
-  c.restore();
+  c.restore(); SNOWY=keep;
 }
 function setCat(k,byUser){ cat=k; for(const q in catBtns) catBtns[q].classList.toggle('on',q===k); toolsEl.textContent=''; if(byUser&&document.body.classList.contains('mobile')) barEl.classList.toggle('open', !(barEl.classList.contains('open')&&catBtns[k].dataset.was==='1')); for(const q in catBtns) catBtns[q].dataset.was=(q===k)?'1':'0';
   for(const tk in TOOLS){ if(TOOLS[tk].cat!==k) continue; const b=document.createElement('button'); b.className='tool'; b.type='button'; b.id='tool-'+tk.replace(':','-');
