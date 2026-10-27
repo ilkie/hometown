@@ -177,7 +177,7 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 <script>
 (async function(){
 'use strict';
-const BUILD='20261027151249';
+const BUILD='20261027152054';
 const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u+'?v='+BUILD,{cache:'no-cache'}).then(r=>r.json())));
 const TW=100, TH=50;
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
@@ -416,7 +416,9 @@ function stepAgents(dt){
       else { if(Math.random()<0.5){ newGoal(p); if(p.path) continue; } if(Math.random()<0.25) p.wait=0.8+Math.random()*2; const nd=pickDir(p.x,p.y,p.dir,walkable); if(nd<0) p.wait=1; else p.dir=nd; } }
   }
 }
-function agentPos(a){ const [dx,dy]=DIRS[a.dir]; const [ax,ay]=tileCenter(a.x,a.y); const [bx,by]=tileCenter(a.x+dx,a.y+dy); return [ax+(bx-ax)*a.t, ay+(by-ay)*a.t, (a.t<0.5)?a.x:a.x+dx, (a.t<0.5)?a.y:a.y+dy]; }
+function agentPos(a){ const [dx,dy]=DIRS[a.dir]; const [ax,ay]=tileCenter(a.x,a.y); const [bx,by]=tileCenter(a.x+dx,a.y+dy); const px=ax+(bx-ax)*a.t, py=ay+(by-ay)*a.t;
+  // depth tile: the view tile whose diamond contains the feet, computed from screen position (so a walker is never covered by the tile ahead)
+  const vx=Math.round((px/(TW/2)+py/(TH/2))/2), vy=Math.round((py/(TH/2)-px/(TW/2))/2); const [tx,ty]=v2w(vx,vy); return [px,py,tx,ty]; }
 function agentsByTile(){ const m=new Map(); const put=(k,v)=>{ if(!m.has(k)) m.set(k,[]); m.get(k).push(v); };
   for(const c of cars){ const [px,py,tx,ty]=agentPos(c); const [dx,dy]=DIRS[vdir(c.dir)]; const sx=dx*TW/2-dy*TW/2, sy=dx*TH/2+dy*TH/2; const L=Math.hypot(sx,sy); const ox=-sy/L*11, oy=sx/L*11; put(key(tx,ty),{kind:'car',x:px+ox,y:py+oy,spr:c.key+'_'+DNAME[vdir(c.dir)]}); }
   for(const tr of trains){ const segs=[{x:tr.x,y:tr.y,dir:tr.dir,spr:'loco'},...tr.trail.slice(0,2).map((s,i)=>({...s,spr:i?'wagon2':'wagon1'}))];
@@ -472,6 +474,12 @@ function draw(){
       const [x,y]=v2w(xv,u-xv); const cell=at(x,y), [cx,cy]=tileCenter(x,y);
       blit(ctx,groundSprite(x,y,cell),cx,cy);
       if(hv&&hv.s===1&&hv.x===x&&hv.y===y) outline(ctx,x,y,1,'rgba(255,255,255,.95)');
+    }
+  }
+  for(let u=umin; u<=umax; u++){
+    const xs=Math.ceil((u+vmin)/2), xe=Math.floor((u+vmax)/2);
+    for(let xv=xs; xv<=xe; xv++){
+      const [x,y]=v2w(xv,u-xv); const cell=at(x,y), [cx,cy]=tileCenter(x,y);
       const ag=agents.get(key(x,y)); if(ag) for(const a of ag) if(a.kind==='car') drawAgent(a);
       if(TOOLS[cell.t]&&TOOLS[cell.t].variants){ const vs=TOOLS[cell.t].variants; blit(ctx,vs[(cell.v||0)%vs.length],cx,cy); if(TOOLS[cell.t].pop&&!connected(x,y,1)){ badge(ctx,x,y,1,null); } if(L<0.85){ if(TOOLS[cell.t].glow) glows.push([cx,cy-30,55,cell.t==='pompoenen'?'255,150,40':'255,220,120']); else if(TOOLS[cell.t].pop) glows.push([cx,cy-20,70,'255,210,120']); } }
       if(cell.t==='hek'){ blit(ctx,HEKS[rotMask(nbMask(x,y,c=>c.t==='hek'))]||'hek_0',cx,cy); }
