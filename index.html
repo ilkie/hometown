@@ -165,7 +165,8 @@ body.mobile #toolNow{display:inline-block}
 <script>
 (async function(){
 'use strict';
-const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u).then(r=>r.json())));
+const BUILD='20261027121706';
+const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u+'?v='+BUILD,{cache:'no-cache'}).then(r=>r.json())));
 const TW=100, TH=50;
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const SPR={}; let pending=0;
