@@ -101,8 +101,12 @@ input[type=text]{font:inherit;font-weight:700;border:2px solid var(--outline);bo
 #menuBtn{display:none}
 body.mobile #hdr{width:auto;max-width:46vw;padding:4px 10px;gap:0;border-radius:10px;top:calc(6px + env(safe-area-inset-top,0px));left:max(6px,env(safe-area-inset-left,0px))}
 body.mobile #hdr h1{font-size:13px;gap:6px} body.mobile #hdr h1 small{font-size:10px} body.mobile #stats{font-size:10.5px} body.mobile #bar-outer{height:4px} body.mobile #hdr p,body.mobile #next{display:none}
-body.mobile #acts{display:none;flex-direction:column;align-items:stretch;max-width:none;width:190px;top:calc(44px + env(safe-area-inset-top,0px));right:max(6px,env(safe-area-inset-right,0px));padding:8px}
-body.mobile #acts.open{display:flex;max-height:calc(100vh - 120px);overflow-y:auto} body.mobile #acts button{width:100%;text-align:left}
+body.mobile #acts{display:none;flex-direction:row;flex-wrap:nowrap;align-items:stretch;max-width:none;left:max(6px,env(safe-area-inset-left,0px));right:calc(52px + env(safe-area-inset-right,0px));top:calc(6px + env(safe-area-inset-top,0px));padding:4px 6px;gap:4px;overflow-x:auto;scrollbar-width:none;border-radius:14px;justify-content:flex-start}
+body.mobile #acts.open{display:flex}
+body.mobile #acts button{flex:0 0 auto;width:auto;font-size:16px;padding:3px 8px 2px;border-radius:12px;line-height:1.1;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:56px}
+body.mobile #acts button span.lbl{display:block;font-size:9px;font-weight:800;white-space:nowrap;max-width:64px;overflow:hidden;text-overflow:ellipsis}
+body.mobile #acts #confirm{font-size:12px;gap:4px} body.mobile #acts #confirm button{font-size:12px;padding:4px 8px}
+body.mobile #acts.open ~ #hdr{display:none}
 body.mobile #menuBtn{display:block;position:fixed;top:calc(6px + env(safe-area-inset-top,0px));right:max(6px,env(safe-area-inset-right,0px));z-index:6;padding:5px 10px;font-size:16px;line-height:1}
 body.mobile #bar{bottom:calc(6px + env(safe-area-inset-bottom,0px));left:max(6px,env(safe-area-inset-left,0px));right:max(6px,env(safe-area-inset-right,0px));padding:4px 6px;gap:4px;border-radius:12px}
 body.mobile #barToggle{display:none}
@@ -134,12 +138,12 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 </div>
 <button id="menuBtn" class="panel" type="button" title="Menu">&#9776;</button>
 <div id="acts" class="panel">
-  <button id="setBtn">&#9881;&#65039; Instellingen</button><button id="exBtn" title="Voorbeelddorpen ter inspiratie">&#127968; Voorbeelden</button><button id="seasonBtn" title="Volgend seizoen">&#127810; Seizoen</button><button id="dayBtn" title="Dag / nacht">&#127769; Nacht</button><button id="soundBtn" title="Geluid aan/uit">&#128264; Geluid</button><button id="fsBtn">&#11021; Volledig scherm</button><button id="reloadBtn" title="Haal de nieuwste versie op">&#8635; Vernieuwen</button>
+  <button id="setBtn">&#9881;&#65039; <span class="lbl">Instellingen</span></button><button id="exBtn" title="Voorbeelddorpen ter inspiratie">&#127968; <span class="lbl">Voorbeelden</span></button><button id="seasonBtn" title="Volgend seizoen">&#127810; Seizoen</button><button id="dayBtn" title="Dag / nacht">&#127769; Nacht</button><button id="soundBtn" title="Geluid aan/uit">&#128264; Geluid</button><button id="fsBtn">&#11021; <span class="lbl">Volledig scherm</span></button><button id="reloadBtn" title="Haal de nieuwste versie op">&#8635; <span class="lbl">Vernieuwen</span></button>
   <button id="rotL" hidden>&#8634;</button><button id="rotR" hidden>&#8635;</button>
-  <button id="homeBtn" title="Terug naar het midden">&#127919; Naar midden</button>
+  <button id="homeBtn" title="Terug naar het midden">&#127919; <span class="lbl">Naar midden</span></button>
   <button id="modeBtn" title="Wissel tussen schuiven en een vlak vullen">&#9995; Slepen: schuiven</button>
-  <button id="undoBtn">&#8630; Ongedaan maken</button>
-  <button id="clearBtn" class="danger">&#128465;&#65039; Alles wissen</button>
+  <button id="undoBtn">&#8630; <span class="lbl">Ongedaan maken</span></button>
+  <button id="clearBtn" class="danger">&#128465;&#65039; <span class="lbl">Alles wissen</span></button>
   <span id="confirm" hidden>Zeker? <button id="yes" class="danger">Ja, wissen</button><button id="no">Nee</button></span>
 </div>
 <div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"><span id="modes"><button id="mSelect" type="button" title="Selecteren: tik op iets in je dorp voor info of om te verwijderen">&#128269;</button><button id="mDelete" type="button" class="danger" title="Slopen: tik op iets om het weg te halen">&#128465;&#65039;</button></span><span id="toolNow"></span></div><div id="tools"></div></div>
@@ -177,8 +181,9 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 <script>
 (async function(){
 'use strict';
-const BUILD='20261027153626';
+const BUILD='20261027154311';
 const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u+'?v='+BUILD,{cache:'no-cache'}).then(r=>r.json())));
+const SHORT={'Slepen: schuiven':'Schuiven','Slepen: vlak vullen':'Vlak vullen','Ongedaan maken':'Ongedaan','Volledig scherm':'Volledig','Naar midden':'Midden','Alles wissen':'Wissen','Voorbeelden':'Voorbeelden','Vernieuwen':'Vernieuwen','Haal de nieuwste versie op':'Vernieuwen','Terug naar het midden':'Midden','Voorbeelddorpen ter inspiratie':'Voorbeelden','Wissel tussen schuiven en een vlak vullen':'Schuiven'};
 const TW=100, TH=50;
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const SPR={}; let pending=0;
@@ -659,18 +664,19 @@ function setCat(k,byUser){ cat=k; for(const q in catBtns) catBtns[q].classList.t
 }
 function setTool(k){ tool=k; if(mode!=='build'){ mode='build'; document.getElementById('mSelect').classList.remove('on'); document.getElementById('mDelete').classList.remove('on'); hideInfo(); cv.classList.toggle('pan',!paintMode); } for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); const tn=document.getElementById('toolNow'); if(tn) tn.textContent='▸ '+TOOLS[k].label; if(document.body.classList.contains('mobile')&&toolsEl.contains(document.activeElement)) setTimeout(()=>barEl.classList.remove('open'),120); }
 const modeBtn=document.getElementById('modeBtn');
-modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; modeBtn.textContent=paintMode?'\u25A6 Slepen: vlak vullen':'\u270B Slepen: schuiven'; if(paintMode) msg('Sleep een kader: alles erin wordt gevuld (hek/heg: alleen de rand). Zet terug op schuiven om rond te kijken.',true); modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
+modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; refreshQuick(); if(paintMode) msg('Sleep een kader: alles erin wordt gevuld (hek/heg: alleen de rand). Zet terug op schuiven om rond te kijken.',true); modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
 function home(){ view.s=innerWidth<600?.32:(innerWidth<1000?.42:.5); view.ox=innerWidth/2; view.oy=innerHeight/2; requestDraw(); }
 document.getElementById('homeBtn').addEventListener('click',home);
 const barEl=document.getElementById('bar'), barT=document.getElementById('barToggle'), actsEl=document.getElementById('acts'), menuBtn=document.getElementById('menuBtn');
-const mq=matchMedia('(max-height:560px),(max-width:600px)'); function applyMobile(){ document.body.classList.toggle('mobile',mq.matches); if(!mq.matches){ actsEl.classList.remove('open'); } } mq.addEventListener('change',applyMobile); applyMobile();
+const mq=matchMedia('(max-height:560px),(max-width:600px)'); function applyMobile(){ document.body.classList.toggle('mobile',mq.matches); if(!mq.matches){ actsEl.classList.remove('open'); } for(const b of actsEl.querySelectorAll('button')){ const l=b.querySelector('.lbl'); const f=b.dataset.full; if(l&&f){ l.textContent=mq.matches?(SHORT[f]||f):f; } } if(typeof refreshQuick==='function') refreshQuick(); } mq.addEventListener('change',applyMobile); applyMobile();
 menuBtn.addEventListener('click',()=>actsEl.classList.toggle('open'));
 cv.addEventListener('pointerdown',()=>{ actsEl.classList.remove('open'); if(document.body.classList.contains('mobile')) barEl.classList.remove('open'); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(mode!=='build') setMode('build'); hideInfo(); } });
 document.getElementById('fsBtn').addEventListener('click',()=>{ const el=document.documentElement; const req=el.requestFullscreen||el.webkitRequestFullscreen; if(document.fullscreenElement){ document.exitFullscreen(); return; } if(req){ req.call(el).catch(()=>msg('Volledig scherm lukt hier niet. Tip: zet de site op je beginscherm (Delen → Zet op beginscherm), dan opent hij zonder browserbalken.',true)); } else msg('Volledig scherm lukt hier niet. Tip: zet de site op je beginscherm (Delen → Zet op beginscherm), dan opent hij zonder browserbalken.',true); actsEl.classList.remove('open'); }); barT.addEventListener('click',()=>{ barEl.classList.toggle('collapsed'); barT.innerHTML=barEl.classList.contains('collapsed')?'&#9650;':'&#9660;'; });
-for(const b of actsEl.querySelectorAll('button')) b.addEventListener('click',()=>{ if(b.id!=='clearBtn'&&b.id!=='no') actsEl.classList.remove('open'); });
+for(const b of actsEl.querySelectorAll('button')){ const l=b.querySelector('.lbl'); if(l){ b.dataset.full=l.textContent; if(!b.title) b.title=l.textContent; if(document.body.classList.contains('mobile')) l.textContent=SHORT[b.dataset.full]||b.dataset.full; } } b.addEventListener('click',()=>{ if(!document.body.classList.contains('mobile')) return; if(['setBtn','exBtn','fsBtn','reloadBtn'].includes(b.id)) actsEl.classList.remove('open'); }); }
 const SEASON_ICON={zomer:'\u2600\uFE0F',lente:'\u{1F337}',herfst:'\u{1F342}',winter:'\u2744\uFE0F'};
-function refreshQuick(){ if(!town) return; document.getElementById('seasonBtn').textContent=SEASON_ICON[town.season||'zomer']+' '+SEASONS[town.season||'zomer']; const dm=town.daymode||'auto'; document.getElementById('dayBtn').textContent=(dm==='nacht'?'\u{1F319} Nacht':dm==='dag'?'\u2600\uFE0F Dag':'\u{1F305} Dag/nacht'); document.getElementById('soundBtn').textContent=(sound.on?'\u{1F50A} Geluid aan':'\u{1F507} Geluid uit'); }
+function setBtn(id,icon,label){ const b=document.getElementById(id); b.innerHTML=icon+' <span class="lbl">'+(document.body.classList.contains('mobile')?(SHORT[label]||label):label)+'</span>'; b.title=label; b.dataset.full=label; }
+function refreshQuick(){ if(!town) return; setBtn('seasonBtn',SEASON_ICON[town.season||'zomer'],SEASONS[town.season||'zomer']); const dm=town.daymode||'auto'; setBtn('dayBtn',dm==='nacht'?'\u{1F319}':dm==='dag'?'\u2600\uFE0F':'\u{1F305}',dm==='nacht'?'Nacht':dm==='dag'?'Dag':'Dag/nacht'); setBtn('soundBtn',sound.on?'\u{1F50A}':'\u{1F507}',sound.on?'Geluid aan':'Geluid uit'); setBtn('modeBtn',paintMode?'\u25A6':'\u270B',paintMode?'Slepen: vlak vullen':'Slepen: schuiven'); }
 document.getElementById('seasonBtn').addEventListener('click',()=>{ const ks=Object.keys(SEASONS); town.season=ks[(ks.indexOf(town.season||'zomer')+1)%ks.length]; SNOWY=(town.season==='winter')||(town.theme==='kerst'); refreshQuick(); renderSettings(); saveSoon(); syncPopulation(); requestDraw(); msg(SEASON_ICON[town.season]+' '+SEASONS[town.season]); });
 document.getElementById('dayBtn').addEventListener('click',()=>{ const ks=['auto','dag','nacht']; town.daymode=ks[(ks.indexOf(town.daymode||'auto')+1)%3]; if(town.daymode==='auto') clock=0.45; refreshQuick(); renderSettings(); saveSoon(); requestDraw(); msg(DAYMODES[town.daymode]); });
 document.getElementById('soundBtn').addEventListener('click',()=>{ sound.on=!sound.on; store.sound=sound.on?'aan':'uit'; if(sound.on){ sound.start(); sound.chirp(); } refreshQuick(); renderSettings(); saveSoon(); });
