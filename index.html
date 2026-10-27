@@ -43,11 +43,12 @@ button.danger{color:var(--danger)}
 [hidden]{display:none!important}
 #confirm{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:700}
 #bar{bottom:calc(12px + env(safe-area-inset-bottom,0px));left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));padding:8px 6px 6px;display:flex;flex-direction:column;gap:6px}
-#cats{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:0 2px}
+#cats{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:0 2px;padding-right:40px}
 #cats button{flex:0 0 auto;padding:5px 11px;border-radius:999px;font-size:12.5px}
 #tools{display:flex;flex-wrap:wrap;gap:4px;padding:2px;max-height:38vh;overflow-y:auto;scrollbar-width:thin}
 .tool{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;width:78px;padding:4px 2px;border-radius:12px;border:2px solid transparent;background:transparent;font-size:11px;font-weight:800;color:var(--panel-fg);white-space:nowrap}
 .tool canvas{width:60px;height:60px;border-radius:10px;background:#a9d5ff}
+.tool span{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tool.on{border-color:var(--sel);background:color-mix(in srgb,var(--sel) 14%,var(--panel))}
 .tool:hover{border-color:var(--accent)}
 #credit{display:none;bottom:calc(132px + env(safe-area-inset-bottom,0px));right:max(12px,env(safe-area-inset-right,0px));font-size:11px;color:var(--panel-muted);padding:4px 8px}
@@ -66,6 +67,16 @@ input[type=text]{font:inherit;font-weight:700;border:2px solid var(--outline);bo
 .town .nm{flex:1;min-width:120px}
 .town.cur .nm::after{content:" · geopend";color:var(--panel-muted);font-weight:600}
 @media (max-width:520px){ #hdr p,#next{display:none} #hdr{width:46vw} #acts{max-width:50vw} #credit{display:none} }
+/* phone in landscape: little height, so everything compact and the palette collapsible */
+@media (max-height:520px){
+  #hdr{width:min(40vw,240px);padding:5px 10px;gap:1px} #hdr h1{font-size:14px} #hdr p,#next{display:none} #stats{font-size:11px} #bar-outer{height:6px}
+  #acts{padding:5px 8px;gap:4px;max-width:58vw} #acts button{padding:4px 7px;font-size:11.5px;border-radius:8px}
+  #bar{padding:5px 6px 4px;gap:4px;max-height:46vh} #cats button{padding:3px 9px;font-size:11.5px} #tools{flex-wrap:nowrap;overflow-x:auto;max-height:none}
+  .tool{width:62px;font-size:10px} .tool canvas{width:46px;height:46px}
+  #bar.collapsed #tools{display:none}
+}
+#barToggle{display:none}
+@media (max-height:520px),(max-width:520px){ #barToggle{display:inline-block;position:absolute;right:8px;top:6px;padding:2px 8px;font-size:12px} #bar{position:fixed} }
 </style>
 </head>
 <body>
@@ -86,7 +97,7 @@ input[type=text]{font:inherit;font-weight:700;border:2px solid var(--outline);bo
   <button id="clearBtn" class="danger">Alles wissen</button>
   <span id="confirm" hidden>Zeker? <button id="yes" class="danger">Ja, wissen</button><button id="no">Nee</button></span>
 </div>
-<div id="bar" class="panel"><div id="cats"></div><div id="tools"></div></div>
+<div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"></div><div id="tools"></div></div>
 <div id="credit" class="panel">Gebouwen: Cozy Isometric Town · Boerderij: Guilherme Laso · Tegels &amp; auto's: Kenney.nl</div>
 <div id="msg" role="status"></div>
 <div id="dlg" hidden>
@@ -512,11 +523,12 @@ function setCat(k){ cat=k; for(const q in catBtns) catBtns[q].classList.toggle('
     b.append(ic,l); b.addEventListener('click',()=>setTool(tk)); toolsEl.append(b); btns[tk]={b,ic}; drawIcon(ic.getContext('2d'),tk); }
   for(const q in btns) btns[q].b.classList.toggle('on',q===tool);
 }
-function setTool(k){ tool=k; for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); }
+function setTool(k){ tool=k; for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); if(innerHeight<520&&barEl&&!barEl.classList.contains('collapsed')){ /* keep open; user collapses with the arrow */ } }
 const modeBtn=document.getElementById('modeBtn');
 modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; modeBtn.textContent=paintMode?'Slepen: tekenen':'Slepen: schuiven'; modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
 function home(){ view.s=innerWidth<600?.45:.75; view.ox=innerWidth/2; view.oy=innerHeight/2; requestDraw(); }
 document.getElementById('homeBtn').addEventListener('click',home);
+const barEl=document.getElementById('bar'), barT=document.getElementById('barToggle'); barT.addEventListener('click',()=>{ barEl.classList.toggle('collapsed'); barT.innerHTML=barEl.classList.contains('collapsed')?'&#9650;':'&#9660;'; });
 document.getElementById('rotL').addEventListener('click',()=>rotateView(-1)); document.getElementById('rotR').addEventListener('click',()=>rotateView(1));
 document.getElementById('undoBtn').addEventListener('click',()=>{ const u=undo.pop(); if(u){ for(const ch of u) setCell(ch.x,ch.y,ch.c); saveSoon(); syncPopulation(); requestDraw(); } });
 const confirmEl=document.getElementById('confirm'), clearBtn=document.getElementById('clearBtn');
