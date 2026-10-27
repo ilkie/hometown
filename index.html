@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="description" content="Mijn Dorp – een rustig bouwspel zonder geld of levels. Bouw je eigen dorp, boerderij, haven en spoorlijn.">
+<link rel="icon" href="assets/gebouwen/cottage.png">
+<title>Mijn Dorp</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&display=swap">
+<style>
+/* Layout: full-screen isometric sprite map on an endless grid; floating panels in the corners; two-row build palette (categories + items) docked at the bottom. */
+:root{
+  --bg:#8fc85a;
+  --panel:#fff8ea; --panel-fg:#4a3b2a; --panel-muted:#8c7a63;
+  --accent:#f49a2a; --accent-fg:#3b2306; --outline:#d9c7a7; --sel:#2f9cf0; --danger:#c43b2a; --bar:#e9dcc2;
+  --font-ui:"Nunito","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#5f9a47; --panel:#2b241b; --panel-fg:#f3e9d6; --panel-muted:#b9a88d; --accent:#f4a63f; --accent-fg:#2a1803; --outline:#4a3f31; --sel:#5fb3ff; --danger:#ff7a6a; --bar:#3d3327; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#5f9a47; --panel:#2b241b; --panel-fg:#f3e9d6; --panel-muted:#b9a88d; --accent:#f4a63f; --accent-fg:#2a1803; --outline:#4a3f31; --sel:#5fb3ff; --danger:#ff7a6a; --bar:#3d3327; color-scheme:dark }
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--panel-fg);font-family:var(--font-ui);overflow:hidden;
+  padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px));
+  -webkit-user-select:none;user-select:none;touch-action:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+#c.pan{cursor:grab}
+.panel{position:fixed;background:var(--panel);border:2px solid var(--outline);border-radius:14px;box-shadow:0 4px 0 rgba(0,0,0,.15);padding:8px 12px;z-index:5}
+#hdr{top:calc(12px + env(safe-area-inset-top,0px));left:max(12px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:3px;width:min(52vw,300px)}
+#hdr h1{margin:0;font-size:18px;font-weight:800;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+#hdr h1 small{font-size:12px;color:var(--panel-muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+#hdr p{margin:0;font-size:12px;color:var(--panel-muted);font-weight:600}
+#stats{font-size:12.5px;font-weight:800;display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}
+#bar-outer{height:9px;border-radius:999px;background:var(--bar);overflow:hidden}
+#bar-inner{height:100%;width:0;background:linear-gradient(90deg,#f6b24a,#f08a2e);border-radius:999px;transition:width .4s}
+#next{font-size:11px;color:var(--panel-muted);font-weight:700}
+#acts{top:calc(12px + env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;max-width:40vw}
+button{font:inherit;font-weight:800;border:2px solid var(--outline);background:var(--panel);color:var(--panel-fg);border-radius:10px;padding:6px 10px;cursor:pointer;line-height:1.1;font-size:13px}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--sel);outline-offset:2px}
+button.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+button.danger{color:var(--danger)}
+[hidden]{display:none!important}
+#confirm{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:700}
+#bar{bottom:calc(12px + env(safe-area-inset-bottom,0px));left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));padding:8px 6px 6px;display:flex;flex-direction:column;gap:6px}
+#cats{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:0 2px}
+#cats button{flex:0 0 auto;padding:5px 11px;border-radius:999px;font-size:12.5px}
+#tools{display:flex;flex-wrap:wrap;gap:4px;padding:2px;max-height:38vh;overflow-y:auto;scrollbar-width:thin}
+.tool{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:2px;width:78px;padding:4px 2px;border-radius:12px;border:2px solid transparent;background:transparent;font-size:11px;font-weight:800;color:var(--panel-fg);white-space:nowrap}
+.tool canvas{width:60px;height:60px;border-radius:10px;background:#a9d5ff}
+.tool.on{border-color:var(--sel);background:color-mix(in srgb,var(--sel) 14%,var(--panel))}
+.tool:hover{border-color:var(--accent)}
+#credit{display:none;bottom:calc(132px + env(safe-area-inset-bottom,0px));right:max(12px,env(safe-area-inset-right,0px));font-size:11px;color:var(--panel-muted);padding:4px 8px}
+#msg{position:fixed;left:50%;transform:translateX(-50%);top:calc(70px + env(safe-area-inset-top,0px));background:var(--panel);border:2px solid var(--outline);border-radius:10px;padding:6px 12px;font-size:13px;font-weight:700;z-index:6;pointer-events:none;opacity:0;transition:opacity .2s;max-width:80vw;text-align:center}
+#msg.show{opacity:1}
+#dlg{position:fixed;inset:0;background:rgba(30,20,10,.45);z-index:20;display:flex;align-items:center;justify-content:center;padding:16px}
+#dlg[hidden]{display:none}
+#dlgbox{background:var(--panel);border:2px solid var(--outline);border-radius:16px;padding:14px 16px;width:min(92vw,520px);max-height:88vh;overflow:auto;display:flex;flex-direction:column;gap:12px;box-shadow:0 6px 0 rgba(0,0,0,.18)}
+#dlgbox h2{margin:0;font-size:17px;display:flex;justify-content:space-between;align-items:center}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.row label{font-size:12px;font-weight:800;color:var(--panel-muted);width:100%}
+.seg button{padding:5px 10px;border-radius:999px;font-size:12.5px}
+input[type=text]{font:inherit;font-weight:700;border:2px solid var(--outline);border-radius:10px;padding:6px 10px;background:var(--panel);color:var(--panel-fg);min-width:0;flex:1}
+#towns{display:flex;flex-direction:column;gap:6px}
+.town{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;font-weight:700}
+.town .nm{flex:1;min-width:120px}
+.town.cur .nm::after{content:" · geopend";color:var(--panel-muted);font-weight:600}
+@media (max-width:520px){ #hdr p,#next{display:none} #hdr{width:46vw} #acts{max-width:50vw} #credit{display:none} }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hdr" class="panel">
+  <h1><span id="tname">Mijn Dorp</span> <small id="rank">Gehucht</small></h1>
+  <div id="stats"><span id="pop">0 inwoners</span><span id="bld">0 gebouwen</span></div>
+  <div id="bar-outer"><div id="bar-inner"></div></div>
+  <div id="next"></div>
+  <p>Tik om te bouwen · sleep om te schuiven · scroll/knijp zoomt · rechtsklik wist · tik met een gebouw-tool op een gebouw voor info</p>
+</div>
+<div id="acts" class="panel">
+  <button id="setBtn">Instellingen</button>
+  <button id="homeBtn" title="Terug naar het midden">Naar midden</button>
+  <button id="modeBtn" title="Wissel tussen schuiven en doortekenen">Slepen: schuiven</button>
+  <button id="undoBtn">Ongedaan maken</button>
+  <button id="clearBtn" class="danger">Alles wissen</button>
+  <span id="confirm" hidden>Zeker? <button id="yes" class="danger">Ja, wissen</button><button id="no">Nee</button></span>
+</div>
+<div id="bar" class="panel"><div id="cats"></div><div id="tools"></div></div>
+<div id="credit" class="panel">Gebouwen: Cozy Isometric Town · Boerderij: Guilherme Laso · Tegels &amp; auto's: Kenney.nl</div>
+<div id="msg" role="status"></div>
+<div id="dlg" hidden>
+  <div id="dlgbox" role="dialog" aria-label="Instellingen">
+    <h2>Instellingen <button id="dlgClose">Sluiten</button></h2>
+    <div class="row"><label for="nameIn">Naam van dit dorp</label><input type="text" id="nameIn" maxlength="40"></div>
+    <div class="row seg"><label>Seizoen</label><span id="seasonSeg"></span></div>
+    <div class="row seg"><label>Thema</label><span id="themeSeg"></span></div>
+    <div class="row seg"><label>Dag en nacht</label><span id="daySeg"></span></div>
+    <div class="row"><label>Dorpen</label><div id="towns"></div></div>
+    <div class="row"><button id="newTown">Nieuw leeg dorp</button><button id="randTown">Willekeurig dorp</button><span id="randConfirm" hidden>Dit vervangt het huidige dorp. <button id="randYes" class="danger">Doorgaan</button><button id="randNo">Nee</button></span></div>
+  </div>
+</div>
+
+<script>
+(async function(){
+'use strict';
+const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u).then(r=>r.json())));
+const TW=100, TH=50;
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const SPR={}; let pending=0;
+function loadImg(src){ const im=new Image(); pending++; im.onload=im.onerror=()=>{ if(--pending===0) requestDraw(); }; im.src=src; return im; }
+for(const k in DATA.sprites){ const s=DATA.sprites[k]; SPR[k]={im:loadImg('assets/tiles/'+s.f),ax:s.ax,ay:s.ay,sw:s.w,sh:s.h}; }
+/* Objects: multi-tile buildings and farm pieces, drawn bottom-centred on their footprint. */
+const OBJ={};
+for(const k in COZY){ const s=COZY[k]; OBJ[k]={label:s.label,cat:s.cat,size:s.size||2}; SPR['obj:'+k]={im:loadImg('assets/gebouwen/'+s.f),ax:-s.sw/2,ay:-s.sh,sw:s.sw,sh:s.sh}; }
+for(const k in FARM){ const s=FARM[k]; OBJ[k]={label:s.label,cat:'boerderij',size:s.size||1}; SPR['obj:'+k]={im:loadImg('assets/boerderij/'+s.f),ax:-s.sw/2,ay:-s.sh+(s.nudge||0),sw:s.sw,sh:s.sh}; }
+const ROADS=DATA.roads; ROADS[15]='crossroad'; ROADS[0]='road';
+const WATERS=DATA.waters;
+const RAILS={0:'rail_NS',1:'rail_N',2:'rail_E',4:'rail_S',8:'rail_W',5:'rail_NS',10:'rail_EW',3:'rail_NE',6:'rail_ES',12:'rail_SW',9:'rail_NW',15:'rail_X',7:'rail_NES',14:'rail_ESW',13:'rail_NSW',11:'rail_NEW'};
+const HEKS={0:'hek_0',1:'hek_N',2:'hek_E',4:'hek_S',8:'hek_W',5:'hek_NS',10:'hek_EW',3:'hek_NE',6:'hek_ES',12:'hek_SW',9:'hek_NW',15:'hek_NESW',7:'hek_NES',14:'hek_ESW',13:'hek_NSW',11:'hek_NEW'};
+const FIETS={0:'fiets_0',1:'fiets_N',2:'fiets_E',4:'fiets_S',8:'fiets_W',5:'fiets_NS',10:'fiets_EW',3:'fiets_NE',6:'fiets_ES',12:'fiets_SW',9:'fiets_NW',15:'fiets_NESW',7:'fiets_NES',14:'fiets_ESW',13:'fiets_NSW',11:'fiets_NEW'};
+const PIERS={0:'steiger_0',1:'steiger_N',2:'steiger_E',4:'steiger_S',8:'steiger_W',5:'steiger_NS',10:'steiger_EW',3:'steiger_NE',6:'steiger_ES',12:'steiger_SW',9:'steiger_NW',15:'steiger_NESW',7:'steiger_NES',14:'steiger_ESW',13:'steiger_NSW',11:'steiger_NEW'};
+
+/* ---------- palette ---------- */
+const CATS={grond:'Grond',haven:'Water & haven',feest:'Feest',natuur:'Natuur',boerderij:'Boerderij',wonen:'Wonen',winkels:'Winkels',horeca:'Horeca & uitgaan',openbaar:'Openbaar',werk:'Werk'};
+const TOOLS={
+  gras:  {label:'Gras',   cat:'grond', ground:true, icon:'grass'},
+  weg:   {label:'Weg / brug', cat:'grond', ground:true, icon:'crossroad'},
+  pad:   {label:'Plein',  cat:'grond', ground:true, icon:'plein'},
+  voetpad:{label:'Voetpad', cat:'grond', ground:true, icon:'voetpad'},
+  kiezel:{label:'Kiezelpad', cat:'grond', ground:true, icon:'kiezel'},
+  fiets: {label:'Fietspad', cat:'grond', ground:true, icon:'fiets_NESW'},
+  zand:  {label:'Zand',   cat:'grond', ground:true, icon:'zand'},
+  aarde: {label:'Aarde',  cat:'grond', ground:true, icon:'aarde'},
+  spoor: {label:'Spoor / overweg', cat:'grond', ground:true, icon:'rail_X'},
+  water: {label:'Water',  cat:'haven', ground:true, icon:'water'},
+  steiger:{label:'Steiger', cat:'haven', ground:true, onWater:true, icon:'steiger_NS'},
+  boot:  {label:'Boot',   cat:'haven', onWater:true, variants:['boot_zeil','boot_vis','boot_speed']},
+  boei:  {label:'Boei',   cat:'haven', onWater:true, variants:['boei']},
+  waterplanten:{label:'Waterplanten', cat:'haven', onWater:true, variants:['waterplanten']},
+  vuurtoren:{label:'Vuurtoren', cat:'haven', variants:['vuurtoren']},
+  fontein:{label:'Fontein', cat:'natuur', variants:['fontein']},
+  lantaarn:{label:'Lantaarn', cat:'natuur', variants:['lantaarn'], glow:true},
+  kerstboom:{label:'Kerstboom', cat:'feest', variants:['kerstboom'], glow:true},
+  pakjes:{label:'Pakjes', cat:'feest', variants:['pakjes']},
+  sneeuwpop:{label:'Sneeuwpop', cat:'feest', variants:['sneeuwpop']},
+  pompoenen:{label:'Pompoenen', cat:'feest', variants:['pompoenen'], glow:true},
+  mais:  {label:'Maïsveld', cat:'boerderij', ground:true, icon:'akker'},
+  hek:   {label:'Hek', cat:'boerderij', ground:true, over:true, icon:'hek_NS'},
+  boom:  {label:'Boom',   cat:'natuur', variants:['treeTall','treeShort','treeAltTall','coniferTall','coniferShort','coniferAltTall']},
+  flat3: {label:'Flat 3 hoog', cat:'wonen', variants:['flat3_rood','flat3_wit','flat3_grijs','flat3_geel','flat3_beige'], pop:12},
+  flat5: {label:'Flat 5 hoog', cat:'wonen', variants:['flat5_rood','flat5_wit','flat5_grijs','flat5_geel','flat5_beige'], pop:20},
+  flat8: {label:'Flat 8 hoog', cat:'wonen', variants:['flat8_rood','flat8_wit','flat8_grijs','flat8_geel','flat8_beige'], pop:32},
+};
+const FARM_ORDER=['akker','bieten','koeien','schuur','molen','appelboom','struik','put','kraam','kruiwagen'];
+for(const k of FARM_ORDER){ if(OBJ[k]) TOOLS['b:'+k]={label:OBJ[k].label,cat:'boerderij',building:k,size:OBJ[k].size}; }
+for(const k in COZY){ TOOLS['b:'+k]={label:OBJ[k].label,cat:OBJ[k].cat,building:k,size:OBJ[k].size}; }
+const POP={cottage:4, schuur:2, koeien:1};   // inhabitants per placed object; everything else counts as a building only
+const NEEDS_ROAD={}; for(const k in COZY) NEEDS_ROAD[k]=true; NEEDS_ROAD.park=false; NEEDS_ROAD.schuur=true; NEEDS_ROAD.molen=true; NEEDS_ROAD.kraam=true;
+const RANKS=[[0,'Leeg land'],[1,'Gehucht'],[40,'Dorp'],[120,'Groot dorp'],[300,'Stadje'],[700,'Stad'],[1500,'Grote stad'],[3000,'Metropool']];
+
+/* ---------- state: a sparse, endless grid ---------- */
+const GRAS=Object.freeze({t:'gras'});
+let cells=new Map(), tool='b:cottage', cat='wonen', paintMode=false, undo=[];
+let view={s:1,ox:0,oy:0}, hover=null, drawPending=false;
+const key=(x,y)=>x+','+y;
+const at=(x,y)=>cells.get(key(x,y))||GRAS;
+function setCell(x,y,c){ if(!c||c.t==='gras') cells.delete(key(x,y)); else cells.set(key(x,y),c); }
+function setB(x,y,k){ const s=OBJ[k].size; for(let dy=0;dy<s;dy++) for(let dx=0;dx<s;dx++) setCell(x+dx,y+dy,(dx||dy)? {t:'o',x,y} : {t:'b',k,s}); }
+function seed(){
+  const set=(x,y,t,v)=>setCell(x,y,{t,v:v||0});
+  for(let x=-12;x<13;x++) set(x,-2,'weg'); for(let y=-12;y<14;y++) set(0,y,'weg'); for(let x=-12;x<1;x++) set(x,-10,'weg'); for(let y=-10;y<-2;y++) set(-12,y,'weg');
+  for(let x=1;x<12;x++) set(x,1,'pad'); for(let x=1;x<4;x++) set(x,-3,'pad'); for(let y=-1;y<12;y++) set(-5,y,'kiezel');
+  setB(-10,-9,'cottage'); setB(-7,-9,'cottage'); setB(-4,-9,'cottage'); setB(-10,-4,'cottage'); setB(-7,-4,'cottage'); setB(-4,-4,'bakery');
+  setB(1,-9,'church'); setB(1,-6,'school'); setB(4,-9,'park'); setB(1,-4,'restaurant'); setB(4,-4,'shop'); setB(7,-4,'market');
+  setB(1,-1,'hospital'); setB(4,-1,'police'); setB(7,-1,'bank'); setB(1,2,'library'); setB(4,2,'mall'); setB(7,2,'cinema'); setB(-2,-1,'bar');
+  set(10,-1,'flat5',0); set(11,-1,'flat8',1); set(12,-1,'flat3',2); set(10,-3,'flat8',3); set(11,-3,'flat5',4); set(12,-3,'flat3',1);
+  setB(-10,-1,'schuur'); setB(-7,-1,'koeien'); setB(-4,2,'molen'); setB(-4,-1,'put'); setB(-3,-1,'kraam'); setB(-4,0,'kruiwagen');
+  for(let x=-11;x<-7;x++) for(let y=3;y<7;y++) setB(x,y,(x+y)%2?'bieten':'akker'); for(let x=-4;x<0;x++) for(let y=5;y<8;y++) set(x,y,'mais');
+  for(let x=-12;x<-6;x++){ setCell(x,2,{t:'hek'}); setCell(x,7,{t:'hek'}); } for(let y=2;y<8;y++){ setCell(-12,y,{t:'hek'}); setCell(-7,y,{t:'hek'}); } setCell(-9,7,null);
+  for(let x=-11;x<-5;x++) setB(x,9,'appelboom'); for(let x=-4;x<-1;x++) setB(x,9,'struik');
+  for(let x=-3;x<11;x++) for(let y=10;y<14;y++) if(x!==0) set(x,y,'water'); for(let y=10;y<14;y++) set(0,y,'brug');
+  for(let x=-14;x<15;x++) setCell(x,-13,{t:'spoor'}); setCell(0,-13,{t:'overweg'}); for(let y=-13;y<-10;y++) setCell(-14,y,{t:'spoor'}); for(let x=-14;x<-12;x++) setCell(x,-10,{t:'spoor'});
+  setCell(4,10,{t:'steiger'}); setCell(4,11,{t:'steiger'}); setCell(5,11,{t:'steiger'}); setCell(6,11,{t:'steiger'});
+  setCell(7,12,{t:'water',o:'boot',v:0}); setCell(9,11,{t:'water',o:'boot',v:1}); setCell(2,12,{t:'water',o:'boei',v:0}); setCell(-2,11,{t:'water',o:'waterplanten',v:0}); set(11,10,'vuurtoren'); set(2,-3,'fontein'); set(5,0,'lantaarn'); set(9,0,'lantaarn');
+  for(let i=0;i<70;i++){ const x=(i*11)%34-17, y=(i*17+5)%34-17; if(at(x,y).t==='gras') set(x,y,'boom',i%6); }
+}
+/* towns: several saved villages, each with its own name, season, theme and day setting */
+let store={current:null,towns:{}}; let town=null;
+const SEASONS={zomer:'Zomer',lente:'Lente',herfst:'Herfst',winter:'Winter'}, THEMES={geen:'Geen',kerst:'Kerst',sinterklaas:'Sinterklaas',halloween:'Halloween'}, DAYMODES={auto:'Automatisch',dag:'Altijd dag',nacht:'Altijd nacht'};
+function newTown(name){ const id='t'+Date.now().toString(36)+Math.floor(Math.random()*1e4); store.towns[id]={name:name||'Mijn Dorp',cells:[],season:'zomer',theme:'geen',daymode:'auto'}; return id; }
+function openTown(id){ if(!store.towns[id]) return; store.current=id; town=store.towns[id]; cells=new Map(town.cells||[]); undo=[]; cars=[]; people=[]; trains=[]; boats=[]; document.getElementById('nameIn').value=town.name; renderSettings(); updateTitle(); }
+function load(){ try{ const raw=localStorage.getItem('dorpje.v9'); if(raw){ const d=JSON.parse(raw); if(d&&d.towns&&d.current&&d.towns[d.current]){ store=d; openTown(d.current); return true; } } }catch(e){} return false; }
+function save(){ if(town){ town.cells=[...cells.entries()]; } try{ localStorage.setItem('dorpje.v9',JSON.stringify(store)); }catch(e){} }
+function updateTitle(){ document.getElementById('tname').textContent=town?town.name:'Mijn Dorp'; }
+let saveT=null; function saveSoon(){ clearTimeout(saveT); saveT=setTimeout(save,400); }
+const msgEl=document.getElementById('msg'); let msgT=null;
+function msg(s,long){ msgEl.textContent=s; msgEl.classList.add('show'); clearTimeout(msgT); msgT=setTimeout(()=>msgEl.classList.remove('show'),long?3200:1600); }
+
+/* ---------- milestones ---------- */
+let lastRank=null;
+function updateStats(){
+  let pop=0, bld=0;
+  for(const c of cells.values()){
+    if(c.t==='b'){ bld++; pop+=POP[c.k]||0; }
+    else if(TOOLS[c.t]&&TOOLS[c.t].pop){ bld++; pop+=TOOLS[c.t].pop; }
+  }
+  let ri=0; for(let i=0;i<RANKS.length;i++) if(pop>=RANKS[i][0]) ri=i;
+  const cur=RANKS[ri], nxt=RANKS[ri+1];
+  document.getElementById('rank').textContent=cur[1];
+  document.getElementById('pop').textContent=pop+(pop===1?' inwoner':' inwoners');
+  document.getElementById('bld').textContent=bld+(bld===1?' gebouw':' gebouwen');
+  const frac=nxt? (pop-cur[0])/(nxt[0]-cur[0]) : 1;
+  document.getElementById('bar-inner').style.width=Math.round(Math.max(0,Math.min(1,frac))*100)+'%';
+  document.getElementById('next').textContent=nxt? `Nog ${nxt[0]-pop} inwoners tot ${nxt[1]}` : 'Hoogste niveau bereikt';
+  if(lastRank!==null&&ri>lastRank) msg(`Mijlpaal: je nederzetting is nu een ${cur[1].toLowerCase()}!`,true);
+  lastRank=ri;
+}
+
+/* ---------- sprite selection ---------- */
+const isRoadT=t=>t==='weg'||t==='brug'||t==='overweg';
+const isRailT=t=>t==='spoor'||t==='overweg'||t==='railbrug';
+const isWaterT=t=>t==='water'||t==='brug'||t==='railbrug'||t==='steiger';
+function nbMask(x,y,test){ let m=0; if(test(at(x,y-1))) m|=1; if(test(at(x+1,y))) m|=2; if(test(at(x,y+1))) m|=4; if(test(at(x-1,y))) m|=8; return m; }
+function groundSprite(x,y,cell){
+  switch(cell.t){
+    case 'weg':   return ROADS[nbMask(x,y,c=>isRoadT(c.t))]||'road';
+    case 'brug':  { const m=nbMask(x,y,c=>isRoadT(c.t)); return (m&5)&&!(m&10)? 'bridgeEW' : (m&10)&&!(m&5)? 'bridgeNS' : 'bridgeEW'; }
+    case 'water': return WATERS[nbMask(x,y,c=>!isWaterT(c.t))]||'water';
+    case 'spoor': return RAILS[nbMask(x,y,c=>isRailT(c.t))]||'rail_NS';
+    case 'overweg': { const m=nbMask(x,y,c=>isRoadT(c.t)); return (m&5)&&!(m&10)? 'overweg_rNS':'overweg_rEW'; }
+    case 'railbrug': { const m=nbMask(x,y,c=>isRailT(c.t)); return (m&5)&&!(m&10)? 'railbrug_NS':'railbrug_EW'; }
+    case 'steiger': return PIERS[nbMask(x,y,c=>c.t==='steiger'||!isWaterT(c.t))]||'steiger_0';
+    case 'pad':   return 'plein';
+    case 'voetpad': case 'kiezel': case 'zand': case 'aarde': return cell.t;
+    case 'fiets': return FIETS[nbMask(x,y,c=>c.t==='fiets')]||'fiets_0';
+    case 'mais':  return 'akker';
+    default:      { const g=groundSet(); return g? g : ((((x*7+y*13)%5)+5)%5? 'grass':'grass2'); }
+  }
+}
+function season(){ if(!town) return 'zomer'; if(town.theme==='kerst') return 'winter'; return town.season||'zomer'; }
+function groundSet(){ if(town&&town.theme==='halloween') return 'grass_halloween'; const s=season(); return s==='zomer'? null : 'grass_'+s; }
+function blit(c,name,cx,cy){ const s=SPR[name]; if(!s||!s.im.complete||!s.im.naturalWidth) return; c.drawImage(s.im,cx+s.ax,cy+s.ay,s.sw,s.sh); }
+function tileCenter(x,y){ return [(x-y)*TW/2, (x+y)*TH/2]; }
+
+/* ---------- cars & people ---------- */
+const DIRS=[[0,-1],[1,0],[0,1],[-1,0]], DNAME=['N','E','S','W'];
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let cars=[], people=[], trains=[], boats=[], bats=[], snow=[], lastT=0, animOn=!reduced;
+let clock=0.45; const DAY_LEN=240; // seconds per full day
+function daylight(){ const m=town?town.daymode:'auto'; if(m==='dag') return 1; if(m==='nacht') return 0; const l=0.5-0.5*Math.cos(clock*2*Math.PI); return Math.min(1,Math.max(0,(l-0.15)/0.7)); }
+const isWaterFree=(x,y)=>{ const c=at(x,y); return c.t==='water'&&!c.o; };
+function waterTiles(){ const r=[]; for(const [k,c] of cells) if(c.t==='water'&&!c.o){ const [x,y]=k.split(',').map(Number); r.push([x,y]); } return r; }
+function syncBoats(){ const wt=waterTiles(); const want=wt.length<10?0:Math.min(6,Math.max(1,Math.floor(wt.length/18)));
+  boats=boats.filter(b=>isWaterFree(b.x,b.y)); while(boats.length>want) boats.pop(); let g=40;
+  while(boats.length<want&&g--){ const [x,y]=wt[Math.floor(Math.random()*wt.length)]; const dir=pickDir(x,y,Math.floor(Math.random()*4),isWaterFree); if(dir<0) continue; boats.push({x,y,dir,t:Math.random(),speed:0.18+Math.random()*0.12,key:['boot_zeil','boot_vis','boot_speed'][Math.floor(Math.random()*3)],ph:Math.random()*6}); }
+  if(town&&town.theme==='sinterklaas'&&boats.length&&!boats.some(b=>b.key==='stoomboot')) boats[0].key='stoomboot';
+  if(town&&town.theme!=='sinterklaas') for(const b of boats) if(b.key==='stoomboot') b.key='boot_zeil';
+}
+function stepBoats(dt){ for(const b of boats){ let [dx,dy]=DIRS[b.dir]; if(!isWaterFree(b.x+dx,b.y+dy)){ const nd=pickDir(b.x,b.y,b.dir,isWaterFree); if(nd<0){ b.dead=true; continue; } b.dir=nd; b.t=0; [dx,dy]=DIRS[b.dir]; }
+  b.t+=dt*b.speed; if(b.t>=1){ b.x+=dx; b.y+=dy; b.t-=1; const nd=pickDir(b.x,b.y,b.dir,isWaterFree); if(nd<0){ b.dead=true; continue; } b.dir=nd; } } boats=boats.filter(b=>!b.dead); }
+const isRoad=(x,y)=>isRoadT(at(x,y).t);
+const PATHS=new Set(['pad','voetpad','kiezel','zand','steiger','fiets']);
+const walkable=(x,y)=>{ const t=at(x,y).t; return t==='gras'||t==='boom'||PATHS.has(t); };
+const isRail=(x,y)=>isRailT(at(x,y).t);
+function roadTiles(){ const r=[]; for(const [k,c] of cells) if(isRoadT(c.t)){ const [x,y]=k.split(',').map(Number); r.push([x,y]); } return r; }
+function walkTiles(){ const seen=new Set(), r=[];
+  for(const [k,c] of cells){ const [x,y]=k.split(',').map(Number); if(PATHS.has(c.t)){ if(!seen.has(k)){ seen.add(k); r.push([x,y]); } }
+    if(PATHS.has(c.t)||c.t==='weg'||c.t==='b'||c.t==='o') for(const [dx,dy] of DIRS){ const nx=x+dx, ny=y+dy, nk=key(nx,ny); if(!seen.has(nk)&&at(nx,ny).t==='gras'){ seen.add(nk); r.push([nx,ny]); } } }
+  return r; }
+function pickDir(x,y,dir,test){ const opts=[]; for(let d=0;d<4;d++){ if(d===(dir+2)%4) continue; if(test(x+DIRS[d][0],y+DIRS[d][1])) opts.push(d); }
+  if(!opts.length) return test(x+DIRS[(dir+2)%4][0],y+DIRS[(dir+2)%4][1])? (dir+2)%4 : -1;
+  if(opts.includes(dir)&&Math.random()<0.65) return dir; return opts[Math.floor(Math.random()*opts.length)]; }
+function spawnCar(tiles){ const [x,y]=tiles[Math.floor(Math.random()*tiles.length)]; const dir=pickDir(x,y,Math.floor(Math.random()*4),isRoad); if(dir<0) return null;
+  return {x,y,dir,t:Math.random(),speed:0.9+Math.random()*0.5,key:DATA.cars[Math.floor(Math.random()*DATA.cars.length)]}; }
+function spawnPerson(tiles){ const [x,y]=tiles[Math.floor(Math.random()*tiles.length)]; return {x,y,dir:Math.floor(Math.random()*4),t:Math.random(),speed:0.25+Math.random()*0.2,key:DATA.people[Math.floor(Math.random()*DATA.people.length)],wait:0,flip:false,ph:Math.random()*6}; }
+function railTiles(){ const r=[]; for(const [k,c] of cells) if(isRailT(c.t)){ const [x,y]=k.split(',').map(Number); r.push([x,y]); } return r; }
+function spawnTrain(tiles){ const [x,y]=tiles[Math.floor(Math.random()*tiles.length)]; const dir=pickDir(x,y,Math.floor(Math.random()*4),isRail); if(dir<0) return null; return {x,y,dir,t:0,speed:1.5,trail:[]}; }
+function syncTrains(){ const rt=railTiles(); const want=rt.length<8?0:Math.min(4,Math.max(1,Math.floor(rt.length/14)));
+  trains=trains.filter(tr=>isRail(tr.x,tr.y)); while(trains.length>want) trains.pop(); let g=40; while(trains.length<want&&g--){ const tr=spawnTrain(rt); if(tr) trains.push(tr); } }
+function stepTrains(dt){ for(const tr of trains){ let [dx,dy]=DIRS[tr.dir]; if(!isRail(tr.x+dx,tr.y+dy)){ const nd=pickDir(tr.x,tr.y,tr.dir,isRail); if(nd<0){ tr.dead=true; continue; } tr.dir=nd; tr.t=0; [dx,dy]=DIRS[tr.dir]; }
+    tr.t+=dt*tr.speed; if(tr.t>=1){ tr.trail.unshift({x:tr.x,y:tr.y,dir:tr.dir}); if(tr.trail.length>3) tr.trail.pop(); tr.x+=dx; tr.y+=dy; tr.t-=1; const nd=pickDir(tr.x,tr.y,tr.dir,isRail); if(nd<0){ tr.dead=true; continue; } tr.dir=nd; } }
+  trains=trains.filter(tr=>!tr.dead); }
+function syncPopulation(){
+  syncTrains(); syncBoats();
+  const rt=roadTiles(); const wantCars=rt.length<4?0:Math.min(24,Math.max(2,Math.floor(rt.length/7)));
+  cars=cars.filter(c=>isRoad(c.x,c.y)); while(cars.length>wantCars) cars.pop(); let guard=60; while(cars.length<wantCars&&guard--){ const c=spawnCar(rt); if(c) cars.push(c); }
+  const wt=walkTiles(); const wantP=wt.length<4?0:Math.min(30,Math.max(3,Math.floor(wt.length/10)));
+  people=people.filter(p=>walkable(p.x,p.y)); while(people.length>wantP) people.pop(); guard=60; while(people.length<wantP&&guard--) people.push(spawnPerson(wt));
+  updateStats();
+}
+function stepAgents(dt){
+  for(const c of cars){
+    let [dx,dy]=DIRS[c.dir]; if(!isRoad(c.x+dx,c.y+dy)){ const nd=pickDir(c.x,c.y,c.dir,isRoad); if(nd<0){ c.dead=true; continue; } c.dir=nd; c.t=0; [dx,dy]=DIRS[c.dir]; }
+    c.t+=dt*c.speed; if(c.t>=1){ c.x+=dx; c.y+=dy; c.t-=1; const nd=pickDir(c.x,c.y,c.dir,isRoad); if(nd<0){ c.dead=true; continue; } c.dir=nd; }
+  }
+  cars=cars.filter(c=>!c.dead); stepTrains(dt); stepBoats(dt); clock=(clock+dt/DAY_LEN)%1;
+  for(const p of people){
+    if(p.wait>0){ p.wait-=dt; continue; }
+    let [dx,dy]=DIRS[p.dir]; if(!walkable(p.x+dx,p.y+dy)){ const nd=pickDir(p.x,p.y,p.dir,walkable); if(nd<0){ p.wait=1; continue; } p.dir=nd; p.t=0; [dx,dy]=DIRS[p.dir]; }
+    p.flip=(p.dir===2||p.dir===3);
+    p.t+=dt*p.speed; if(p.t>=1){ p.x+=dx; p.y+=dy; p.t-=1; if(Math.random()<0.25) p.wait=0.8+Math.random()*2; const nd=pickDir(p.x,p.y,p.dir,walkable); if(nd<0) p.wait=1; else p.dir=nd; }
+  }
+}
+function agentPos(a){ const [dx,dy]=DIRS[a.dir]; const [ax,ay]=tileCenter(a.x,a.y); const [bx,by]=tileCenter(a.x+dx,a.y+dy); return [ax+(bx-ax)*a.t, ay+(by-ay)*a.t, (a.t<0.5)?a.x:a.x+dx, (a.t<0.5)?a.y:a.y+dy]; }
+function agentsByTile(){ const m=new Map(); const put=(k,v)=>{ if(!m.has(k)) m.set(k,[]); m.get(k).push(v); };
+  for(const c of cars){ const [px,py,tx,ty]=agentPos(c); const [dx,dy]=DIRS[c.dir]; const sx=dx*TW/2-dy*TW/2, sy=dx*TH/2+dy*TH/2; const L=Math.hypot(sx,sy); const ox=-sy/L*11, oy=sx/L*11; put(key(tx,ty),{kind:'car',x:px+ox,y:py+oy,spr:c.key+'_'+DNAME[c.dir]}); }
+  for(const tr of trains){ const segs=[{x:tr.x,y:tr.y,dir:tr.dir,spr:'loco'},...tr.trail.slice(0,2).map((s,i)=>({...s,spr:i?'wagon2':'wagon1'}))];
+    for(const sg of segs){ const [px,py,tx,ty]=agentPos({x:sg.x,y:sg.y,dir:sg.dir,t:tr.t}); put(key(tx,ty),{kind:'car',x:px,y:py,spr:sg.spr+'_'+DNAME[sg.dir]}); } }
+  const now=performance.now()/1000;
+  for(const b of boats){ const [px,py,tx,ty]=agentPos(b); const bob=Math.sin(now*1.5+b.ph)*1.5; put(key(tx,ty),{kind:'person',x:px,y:py+bob,spr:b.key,flip:(b.dir===2||b.dir===3)}); }
+  for(const p of people){ const [px,py,tx,ty]=agentPos(p); const bob=p.wait>0?0:Math.abs(Math.sin((now*6)+p.ph))*2.5; put(key(tx,ty),{kind:'person',x:px,y:py-bob,spr:p.key,flip:p.flip}); }
+  return m; }
+function drawAgent(a){ if(a.kind==='person'&&a.flip){ ctx.save(); ctx.translate(a.x,a.y); ctx.scale(-1,1); blit(ctx,a.spr,0,0); ctx.restore(); } else blit(ctx,a.spr,a.x,a.y); }
+let tickAcc=0;
+function tick(now){ if(!animOn) return; const dt=Math.min(0.1,(now-(lastT||now))/1000); lastT=now; stepAgents(dt);
+  tickAcc+=dt; const frame=view.s<0.6? 1/25 : 0; if(town&&(town.daymode==='auto'||season()==='winter'||town.theme!=='geen')) requestDraw(); if(tickAcc>=frame){ tickAcc=0; requestDraw(); } requestAnimationFrame(tick); }
+
+/* ---------- rendering ---------- */
+let dpr=1;
+function resize(){ dpr=Math.min(2,window.devicePixelRatio||1); cv.width=innerWidth*dpr; cv.height=innerHeight*dpr; cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px'; requestDraw(); }
+function requestDraw(){ if(!drawPending){ drawPending=true; requestAnimationFrame(draw); } }
+function outline(c,x,y,s,col){ const [cx,cy]=tileCenter(x,y); const [bx,by]=tileCenter(x+s-1,y+s-1); c.lineWidth=3; c.strokeStyle=col; c.beginPath();
+  c.moveTo(cx,cy-TH/2); c.lineTo(cx+s*TW/2,cy-TH/2+s*TH/2); c.lineTo(bx,by+TH/2); c.lineTo(cx-s*TW/2,cy-TH/2+s*TH/2); c.closePath(); c.stroke(); }
+function connected(x,y,s){ for(let dy=-1;dy<=s;dy++) for(let dx=-1;dx<=s;dx++){ if((dx<0||dx>=s)&&(dy<0||dy>=s)) continue; if(dx>=0&&dx<s&&dy>=0&&dy<s) continue; const q=at(x+dx,y+dy).t; if(isRoadT(q)||PATHS.has(q)) return true; } return false; }
+function badge(c,x,y,s,top){ const [cx]=tileCenter(x,y); const [,by]=tileCenter(x+s-1,y+s-1); const spr=top?SPR['obj:'+top]:null; const h=spr?spr.sh:140; const bx=cx, byy=by+TH/2-h-14+Math.sin(performance.now()/300)*3;
+  c.beginPath(); c.arc(bx,byy,11,0,7); c.fillStyle='#f04a3a'; c.fill(); c.lineWidth=2.5; c.strokeStyle='#fff'; c.stroke();
+  c.fillStyle='#fff'; c.font='bold 16px Nunito, sans-serif'; c.textAlign='center'; c.textBaseline='middle'; c.fillText('!',bx,byy+1); }
+function toWorld(sx,sy){ return [(sx-view.ox)/view.s,(sy-view.oy)/view.s]; }
+function draw(){
+  drawPending=false;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const L=daylight(); const gs=groundSet(); const bgc=gs==='grass_winter'?'#eef0f4':gs==='grass_herfst'?'#b0b454':gs==='grass_lente'?'#9acc62':gs==='grass_halloween'?'#73986a':'#8fc85a';
+  ctx.fillStyle=bgc; ctx.fillRect(0,0,innerWidth,innerHeight); const glows=[];
+  ctx.setTransform(dpr*view.s,0,0,dpr*view.s,dpr*view.ox,dpr*view.oy);
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  const hv=hoverInfo(); const agents=agentsByTile();
+  const [wx0,wy0]=toWorld(0,0), [wx1,wy1]=toWorld(innerWidth,innerHeight);
+  const umin=Math.floor(wy0/(TH/2))-3, umax=Math.ceil(wy1/(TH/2))+8;
+  const vmin=Math.floor(wx0/(TW/2))-3, vmax=Math.ceil(wx1/(TW/2))+3;
+  for(let u=umin; u<=umax; u++){
+    const xs=Math.ceil((u+vmin)/2), xe=Math.floor((u+vmax)/2);
+    for(let x=xs; x<=xe; x++){
+      const y=u-x, cell=at(x,y), [cx,cy]=tileCenter(x,y);
+      blit(ctx,groundSprite(x,y,cell),cx,cy);
+      if(hv&&hv.s===1&&hv.x===x&&hv.y===y) outline(ctx,x,y,1,'rgba(255,255,255,.95)');
+      const ag=agents.get(key(x,y)); if(ag) for(const a of ag) if(a.kind==='car') drawAgent(a);
+      if(TOOLS[cell.t]&&TOOLS[cell.t].variants){ const vs=TOOLS[cell.t].variants; blit(ctx,vs[(cell.v||0)%vs.length],cx,cy); if(TOOLS[cell.t].pop&&!connected(x,y,1)){ badge(ctx,x,y,1,null); } if(L<0.85){ if(TOOLS[cell.t].glow) glows.push([cx,cy-30,55,cell.t==='pompoenen'?'255,150,40':'255,220,120']); else if(TOOLS[cell.t].pop) glows.push([cx,cy-20,70,'255,210,120']); } }
+      if(cell.t==='hek'){ blit(ctx,HEKS[nbMask(x,y,c=>c.t==='hek')]||'hek_0',cx,cy); }
+      if(cell.t==='water'&&cell.o){ const vs=TOOLS[cell.o].variants; const bob=cell.o==='boot'||cell.o==='boei'? Math.sin(performance.now()/700+x*1.7+y*2.3)*1.5:0; blit(ctx,vs[(cell.v||0)%vs.length],cx,cy+bob); }
+      if(cell.t==='b'&&cell.s===1){ blit(ctx,'obj:'+cell.k,cx,cy+TH/2); if(NEEDS_ROAD[cell.k]&&!connected(x,y,1)) badge(ctx,x,y,1,cell.k); }
+      if(cell.t==='b'&&cell.s>1&&L<0.85&&NEEDS_ROAD[cell.k]!==undefined){ const [bx,by]=tileCenter(x+cell.s-1,y+cell.s-1); glows.push([cx+(bx-cx)/2+0,by-10,110,'255,205,110']); }
+      if(cell.t==='o'){ const o=at(cell.x,cell.y); if(o.t==='b' && x===cell.x+o.s-1 && y===cell.y+o.s-1){ blit(ctx,'obj:'+o.k,tileCenter(cell.x,cell.y)[0],cy+TH/2); if(NEEDS_ROAD[o.k]&&!connected(cell.x,cell.y,o.s)) badge(ctx,cell.x,cell.y,o.s,o.k); } }
+      if(ag) for(const a of ag) if(a.kind==='person') drawAgent(a);
+      if(hv&&hv.s>1&&x===hv.x+hv.s-1&&y===hv.y+hv.s-1){ outline(ctx,hv.x,hv.y,hv.s,hv.ok?'rgba(255,255,255,.95)':'rgba(255,80,60,.95)'); }
+    }
+  }
+  // night: darken, then add warm light pools
+  if(L<1){ const theme=town?town.theme:'geen'; ctx.setTransform(dpr,0,0,dpr,0,0); const a=(1-L)*(theme==='halloween'?0.5:0.6);
+    ctx.fillStyle=theme==='halloween'?`rgba(60,20,70,${a})`:`rgba(18,28,70,${a})`; ctx.fillRect(0,0,innerWidth,innerHeight);
+    ctx.setTransform(dpr*view.s,0,0,dpr*view.s,dpr*view.ox,dpr*view.oy); ctx.globalCompositeOperation='lighter';
+    for(const [gx,gy,r,col] of glows){ const g=ctx.createRadialGradient(gx,gy,0,gx,gy,r); g.addColorStop(0,`rgba(${col},${0.32*(1-L)})`); g.addColorStop(0.6,`rgba(${col},${0.1*(1-L)})`); g.addColorStop(1,`rgba(${col},0)`); ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(gx,gy,r,r*0.6,0,0,7); ctx.fill(); }
+    ctx.globalCompositeOperation='source-over'; }
+  drawWeather();
+}
+function drawWeather(){
+  const theme=town?town.theme:'geen'; const now=performance.now()/1000; ctx.setTransform(dpr,0,0,dpr,0,0);
+  if(season()==='winter'||theme==='kerst'){ while(snow.length<80) snow.push({x:Math.random(),y:Math.random(),s:1+Math.random()*2,v:0.02+Math.random()*0.03,ph:Math.random()*6});
+    ctx.fillStyle='rgba(255,255,255,.85)'; for(const f of snow){ const x=(f.x+Math.sin(now*0.7+f.ph)*0.01)*innerWidth, y=((f.y+now*f.v)%1)*innerHeight; ctx.beginPath(); ctx.arc(x,y,f.s,0,7); ctx.fill(); } } else snow.length=0;
+  if(theme==='halloween'){ while(bats.length<7) bats.push({x:Math.random(),y:0.1+Math.random()*0.4,v:0.04+Math.random()*0.05,ph:Math.random()*6,dir:Math.random()<0.5?1:-1});
+    for(const b of bats){ const x=((b.x+now*b.v*b.dir)%1+1)%1*innerWidth, y=(b.y+Math.sin(now*2+b.ph)*0.03)*innerHeight; const fr=Math.floor(now*6+b.ph)%2; const s=SPR['vleermuis'+fr]; if(s&&s.im.complete){ ctx.save(); ctx.translate(x,y); if(b.dir<0) ctx.scale(-1,1); ctx.drawImage(s.im,-20,-12,40,24); ctx.restore(); } } } else bats.length=0;
+}
+
+/* ---------- placement ---------- */
+function hoverInfo(){
+  if(!hover) return null; const t=TOOLS[tool];
+  if(t.building){ const s=t.size; return {x:hover.x,y:hover.y,s,ok:canPlace(hover.x,hover.y,s)}; }
+  return {x:hover.x,y:hover.y,s:1,ok:true};
+}
+function canPlace(x,y,s){ for(let dy=0;dy<s;dy++) for(let dx=0;dx<s;dx++){ const c=at(x+dx,y+dy); if(isRoadT(c.t)||isRailT(c.t)||isWaterT(c.t)||c.t==='b'||c.t==='o') return false; } return true; }
+function removeBuildingAt(x,y,changes){
+  const c=at(x,y); let o=null; if(c.t==='b') o={x,y,s:c.s}; else if(c.t==='o'){ const oc=at(c.x,c.y); o={x:c.x,y:c.y,s:oc.s||1}; }
+  if(!o) return; for(let dy=0;dy<o.s;dy++) for(let dx=0;dx<o.s;dx++){ const px=o.x+dx, py=o.y+dy; changes.push({x:px,y:py,c:at(px,py)}); setCell(px,py,null); }
+}
+function place(t,asTool){
+  if(!t) return; let tk=asTool||tool; const tl=TOOLS[tk]; const changes=[];
+  if(tl.building){
+    const s=tl.size, x=t.x, y=t.y;
+    if(!canPlace(x,y,s)){ const c0=at(x,y); const o=c0.t==='b'?c0:(c0.t==='o'?at(c0.x,c0.y):null);
+      if(o&&o.t==='b'){ const ox=c0.t==='b'?x:c0.x, oy=c0.t==='b'?y:c0.y; const ok=connected(ox,oy,o.s); msg(OBJ[o.k].label+(NEEDS_ROAD[o.k]? (ok?' · bereikbaar':' · niet bereikbaar: leg een weg of plein naast dit gebouw, dan verdwijnt het uitroepteken'):''),true); }
+      else if(TOOLS[c0.t]&&TOOLS[c0.t].pop){ msg(TOOLS[c0.t].label+(connected(x,y,1)?' · bereikbaar':' · niet bereikbaar: leg een weg of plein ernaast'),true); }
+      else msg('Hier past het niet: maak eerst ruimte (geen weg, water of ander gebouw).'); return; }
+    for(let dy=0;dy<s;dy++) for(let dx=0;dx<s;dx++) changes.push({x:x+dx,y:y+dy,c:at(x+dx,y+dy)});
+    setB(x,y,tl.building);
+  } else {
+    const cur=at(t.x,t.y); const v=tl.variants? Math.floor(Math.random()*tl.variants.length):0;
+    if(tl.onWater&&!tl.ground){ // boats, buoys, plants: decoration on a water tile
+      if(cur.t!=='water'){ msg('Dit kan alleen op water.'); return; }
+      changes.push({x:t.x,y:t.y,c:cur}); setCell(t.x,t.y,{t:'water',o:tk,v}); }
+    else {
+      let nt=tk;
+      if(tk==='weg'){ if(cur.t==='water'||cur.t==='brug') nt='brug'; else if(cur.t==='spoor'||cur.t==='overweg') nt='overweg'; }
+      if(tk==='spoor'){ if(cur.t==='water'||cur.t==='railbrug'||cur.t==='steiger') nt='railbrug'; else if(cur.t==='weg'||cur.t==='overweg') nt='overweg'; }
+      if(tk==='steiger'){ if(!isWaterT(cur.t)){ msg('Een steiger kan alleen op water.'); return; } }
+      if(tk==='gras'&&cur.t==='water'&&cur.o){ nt='water'; } // first clear the decoration, keep the water
+      if(cur.t==='b'||cur.t==='o'){ removeBuildingAt(t.x,t.y,changes); if(tk!=='gras') setCell(t.x,t.y,{t:nt,v}); }
+      else { if(cur.t===nt && !tl.variants && !cur.o) return; changes.push({x:t.x,y:t.y,c:cur}); setCell(t.x,t.y,{t:nt,v}); }
+    }
+  }
+  if(changes.length){ undo.push(changes); if(undo.length>200) undo.shift(); saveSoon(); syncPopulation(); requestDraw(); }
+}
+
+/* ---------- input ---------- */
+function toTile(sx,sy){ const [wx,wy]=toWorld(sx,sy); return {x:Math.round((wx/(TW/2)+wy/(TH/2))/2), y:Math.round((wy/(TH/2)-wx/(TW/2))/2)}; }
+const SMIN=0.35, SMAX=2.5;
+const ptrs=new Map(); let drag=null, pinch=null;
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y),s:view.s,cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,ox:view.ox,oy:view.oy}; drag=null; return; }
+  const painting=paintMode && TOOLS[tool].ground && e.button===0;
+  drag={x:e.clientX,y:e.clientY,ox:view.ox,oy:view.oy,moved:false,painting,button:e.button};
+  if(painting) place(toTile(e.clientX,e.clientY));
+});
+cv.addEventListener('pointermove',e=>{
+  if(ptrs.has(e.pointerId)) ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch&&ptrs.size===2){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); const ns=Math.min(SMAX,Math.max(SMIN,pinch.s*d/pinch.d)); const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    view.ox=mx-(pinch.cx-pinch.ox)*ns/pinch.s; view.oy=my-(pinch.cy-pinch.oy)*ns/pinch.s; view.s=ns; requestDraw(); return; }
+  hover=toTile(e.clientX,e.clientY);
+  if(drag){ if(drag.painting){ place(hover); return; } const dx=e.clientX-drag.x, dy=e.clientY-drag.y; if(Math.hypot(dx,dy)>5) drag.moved=true; if(drag.moved){ view.ox=drag.ox+dx; view.oy=drag.oy+dy; } }
+  requestDraw();
+});
+function endPtr(e){
+  ptrs.delete(e.pointerId);
+  if(pinch){ if(ptrs.size<2) pinch=null; drag=null; return; }
+  if(drag&&!drag.moved&&!drag.painting&&drag.button===0) place(toTile(e.clientX,e.clientY));
+  if(drag&&drag.button===2) place(toTile(e.clientX,e.clientY),'gras');
+  drag=null; requestDraw();
+}
+cv.addEventListener('pointerup',endPtr); cv.addEventListener('pointercancel',endPtr);
+cv.addEventListener('pointerleave',()=>{ hover=null; requestDraw(); });
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('wheel',e=>{ e.preventDefault(); const ns=Math.min(SMAX,Math.max(SMIN,view.s*Math.exp(-e.deltaY*0.0015)));
+  view.ox=e.clientX-(e.clientX-view.ox)*ns/view.s; view.oy=e.clientY-(e.clientY-view.oy)*ns/view.s; view.s=ns; requestDraw(); },{passive:false});
+
+/* ---------- toolbar ---------- */
+const catsEl=document.getElementById('cats'), toolsEl=document.getElementById('tools'); const catBtns={}, btns={};
+for(const k in CATS){ const b=document.createElement('button'); b.type='button'; b.textContent=CATS[k]; b.addEventListener('click',()=>setCat(k)); catsEl.append(b); catBtns[k]=b; }
+function drawIcon(c,k){
+  c.clearRect(0,0,120,120); c.save(); c.translate(60,0); const t=TOOLS[k];
+  if(t.building){ const s=SPR['obj:'+t.building]; if(!s) return; const sc=Math.min(104/s.sw,104/s.sh); c.scale(sc,sc); blit(c,'obj:'+t.building,0,s.sh+(120/sc-s.sh)/2); }
+  else if(t.variants){ c.scale(.8,.8); blit(c,'grass',0,110); blit(c,t.variants[0],0,110); }
+  else if(t.over){ c.scale(.95,.95); blit(c,'grass',0,70); blit(c,t.icon,0,70); }
+  else { c.scale(.95,.95); blit(c,t.icon,0,70); }
+  c.restore();
+}
+function setCat(k){ cat=k; for(const q in catBtns) catBtns[q].classList.toggle('on',q===k); toolsEl.textContent='';
+  for(const tk in TOOLS){ if(TOOLS[tk].cat!==k) continue; const b=document.createElement('button'); b.className='tool'; b.type='button'; b.id='tool-'+tk.replace(':','-');
+    const ic=document.createElement('canvas'); ic.width=120; ic.height=120; const l=document.createElement('span'); l.textContent=TOOLS[tk].label;
+    b.append(ic,l); b.addEventListener('click',()=>setTool(tk)); toolsEl.append(b); btns[tk]={b,ic}; drawIcon(ic.getContext('2d'),tk); }
+  for(const q in btns) btns[q].b.classList.toggle('on',q===tool);
+}
+function setTool(k){ tool=k; for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); }
+const modeBtn=document.getElementById('modeBtn');
+modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; modeBtn.textContent=paintMode?'Slepen: tekenen':'Slepen: schuiven'; modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
+function home(){ view.s=innerWidth<600?.45:.75; view.ox=innerWidth/2; view.oy=innerHeight/2; requestDraw(); }
+document.getElementById('homeBtn').addEventListener('click',home);
+document.getElementById('undoBtn').addEventListener('click',()=>{ const u=undo.pop(); if(u){ for(const ch of u) setCell(ch.x,ch.y,ch.c); saveSoon(); syncPopulation(); requestDraw(); } });
+const confirmEl=document.getElementById('confirm'), clearBtn=document.getElementById('clearBtn');
+clearBtn.addEventListener('click',()=>{ confirmEl.hidden=false; clearBtn.hidden=true; });
+document.getElementById('no').addEventListener('click',()=>{ confirmEl.hidden=true; clearBtn.hidden=false; });
+document.getElementById('yes').addEventListener('click',()=>{ cells=new Map(); undo=[]; save(); syncPopulation(); requestDraw(); confirmEl.hidden=true; clearBtn.hidden=false; });
+window.addEventListener('keydown',e=>{ if((e.metaKey||e.ctrlKey)&&e.key==='z'){ e.preventDefault(); document.getElementById('undoBtn').click(); } });
+
+/* ---------- settings dialog ---------- */
+const dlg=document.getElementById('dlg');
+function seg(el,opts,get,set){ el.textContent=''; for(const k in opts){ const b=document.createElement('button'); b.type='button'; b.textContent=opts[k]; b.classList.toggle('on',get()===k); b.addEventListener('click',()=>{ set(k); renderSettings(); saveSoon(); syncPopulation(); requestDraw(); }); el.append(b); } }
+function renderSettings(){ if(!town) return;
+  seg(document.getElementById('seasonSeg'),SEASONS,()=>town.season,v=>town.season=v);
+  seg(document.getElementById('themeSeg'),THEMES,()=>town.theme,v=>town.theme=v);
+  seg(document.getElementById('daySeg'),DAYMODES,()=>town.daymode,v=>{ town.daymode=v; if(v==='auto') clock=0.45; });
+  const list=document.getElementById('towns'); list.textContent='';
+  for(const id in store.towns){ const tw=store.towns[id]; const row=document.createElement('div'); row.className='town'+(id===store.current?' cur':''); const nm=document.createElement('span'); nm.className='nm'; nm.textContent=tw.name; row.append(nm);
+    if(id!==store.current){ const o=document.createElement('button'); o.textContent='Openen'; o.addEventListener('click',()=>{ save(); openTown(id); save(); syncPopulation(); home(); }); row.append(o); }
+    if(Object.keys(store.towns).length>1){ const del=document.createElement('button'); del.className='danger'; del.textContent='Verwijderen'; del.addEventListener('click',()=>{ if(del.dataset.arm){ delete store.towns[id]; if(id===store.current){ openTown(Object.keys(store.towns)[0]); } save(); renderSettings(); syncPopulation(); requestDraw(); } else { del.dataset.arm='1'; del.textContent='Zeker? Klik nogmaals'; } }); row.append(del); }
+    list.append(row); }
+}
+document.getElementById('setBtn').addEventListener('click',()=>{ renderSettings(); dlg.hidden=false; document.getElementById('nameIn').value=town.name; });
+document.getElementById('dlgClose').addEventListener('click',()=>{ dlg.hidden=true; });
+dlg.addEventListener('click',e=>{ if(e.target===dlg) dlg.hidden=true; });
+document.getElementById('nameIn').addEventListener('input',e=>{ town.name=e.target.value.trim()||'Mijn Dorp'; updateTitle(); saveSoon(); });
+document.getElementById('newTown').addEventListener('click',()=>{ save(); const id=newTown('Nieuw dorp '+Object.keys(store.towns).length); openTown(id); save(); syncPopulation(); home(); });
+const rc=document.getElementById('randConfirm');
+document.getElementById('randTown').addEventListener('click',()=>{ rc.hidden=false; });
+document.getElementById('randNo').addEventListener('click',()=>{ rc.hidden=true; });
+document.getElementById('randYes').addEventListener('click',()=>{ rc.hidden=true; randomTown(); undo=[]; save(); syncPopulation(); home(); dlg.hidden=true; msg('Nieuw willekeurig dorp aangelegd',true); });
+function randomTown(){
+  cells=new Map(); const R=14, P=4; const rnd=n=>Math.floor(Math.random()*n); const set=(x,y,t,v)=>setCell(x,y,{t,v:v||0});
+  const nx=2+rnd(2), ny=2+rnd(2); const xs=[], ys=[]; for(let i=0;i<=nx;i++) xs.push(-R+i*Math.floor(2*R/nx)); for(let j=0;j<=ny;j++) ys.push(-R+j*Math.floor(2*R/ny));
+  for(const x of xs) for(let y=-R;y<=R;y++) set(x,y,'weg'); for(const y of ys) for(let x=-R;x<=R;x++) set(x,y,'weg');
+  const inner=['cottage','cottage','cottage','bakery','shop','restaurant','cafe','market','church','school','police','bank','library','mall','hospital','cinema','bar','pizzeria','fashion','furniture','cottage','cottage'];
+  const outer=['cottage','cottage','cottage','cottage','park','farm','schuur','koeien','molen','cottage','clinics','chapel'];
+  for(let i=0;i<xs.length-1;i++) for(let j=0;j<ys.length-1;j++){
+    const x0=xs[i]+1, x1=xs[i+1]-1, y0=ys[j]+1, y1=ys[j+1]-1; const edge=(i===0||j===0||i===xs.length-2||j===ys.length-2);
+    if(Math.random()<0.18){ for(let x=x0+1;x<x1;x++) for(let y=y0+1;y<y1;y++) set(x,y,'water'); continue; }
+    if(Math.random()<0.2&&edge){ for(let x=x0+1;x<x1-1;x+=1) for(let y=y0+1;y<y1-1;y+=1) setB(x,y,Math.random()<0.5?'akker':'bieten'); continue; }
+    for(let x=x0;x<x1;x+=2) for(let y=y0;y<y1;y+=2){ if(x+1>x1||y+1>y1) continue; const nearRoad=(x===x0||y===y0||x+1===x1||y+1===y1); if(!nearRoad&&Math.random()<0.6) continue; if(Math.random()<0.15) continue;
+      const k=(edge?outer:inner)[rnd((edge?outer:inner).length)]; if(canPlace(x,y,OBJ[k].size)) setB(x,y,k); }
+  }
+  for(let i=0;i<120;i++){ const x=-R-6+rnd(2*R+12), y=-R-6+rnd(2*R+12); if(at(x,y).t==='gras') set(x,y,'boom',rnd(6)); }
+  for(let i=0;i<6;i++){ const x=-R+rnd(2*R), y=-R+rnd(2*R); if(at(x,y).t==='gras'&&connected(x,y,1)) set(x,y,['flat3','flat5','flat8'][rnd(3)],rnd(5)); }
+}
+
+/* ---------- boot ---------- */
+function start(data){
+  if(data&&data.store){ store=data.store; openTown(store.current); if(data.clock!=null) clock=data.clock; } else if(!load()){ const id=newTown('Mijn Dorp'); openTown(id); seed(); save(); }
+  if(data&&data.view) view=data.view; else home();
+  cv.classList.add('pan'); setCat('wonen'); setTool('b:cottage');
+  window.claude?.hot?.snapshot?.(()=>{ save(); return {store,view,clock}; });
+  window.addEventListener('resize',resize); resize();
+  const waitIcons=()=>{ if(pending>0) setTimeout(waitIcons,80); else { setCat(cat); syncPopulation(); requestDraw(); if(animOn) requestAnimationFrame(tick); } }; waitIcons();
+}
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
+</script>
+</body>
+</html>
