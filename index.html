@@ -137,7 +137,7 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
   <button id="setBtn">&#9881;&#65039; Instellingen</button><button id="exBtn" title="Voorbeelddorpen ter inspiratie">&#127968; Voorbeelden</button><button id="seasonBtn" title="Volgend seizoen">&#127810; Seizoen</button><button id="dayBtn" title="Dag / nacht">&#127769; Nacht</button><button id="soundBtn" title="Geluid aan/uit">&#128264; Geluid</button><button id="fsBtn">&#11021; Volledig scherm</button><button id="reloadBtn" title="Haal de nieuwste versie op">&#8635; Vernieuwen</button>
   <button id="rotL" hidden>&#8634;</button><button id="rotR" hidden>&#8635;</button>
   <button id="homeBtn" title="Terug naar het midden">&#127919; Naar midden</button>
-  <button id="modeBtn" title="Wissel tussen schuiven en doortekenen">&#9995; Slepen: schuiven</button>
+  <button id="modeBtn" title="Wissel tussen schuiven en een vlak vullen">&#9995; Slepen: schuiven</button>
   <button id="undoBtn">&#8630; Ongedaan maken</button>
   <button id="clearBtn" class="danger">&#128465;&#65039; Alles wissen</button>
   <span id="confirm" hidden>Zeker? <button id="yes" class="danger">Ja, wissen</button><button id="no">Nee</button></span>
@@ -177,7 +177,7 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 <script>
 (async function(){
 'use strict';
-const BUILD='20261027153511';
+const BUILD='20261027153626';
 const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u+'?v='+BUILD,{cache:'no-cache'}).then(r=>r.json())));
 const TW=100, TH=50;
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
@@ -478,7 +478,7 @@ function draw(){
   ctx.fillStyle=bgc; ctx.fillRect(0,0,innerWidth,innerHeight); const glows=[];
   ctx.setTransform(dpr*view.s,0,0,dpr*view.s,dpr*view.ox,dpr*view.oy);
   ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
-  const hv=hoverInfo(); const agents=agentsByTile();
+  const hv=rect?null:hoverInfo(); const agents=agentsByTile();
   const [wx0,wy0]=toWorld(0,0), [wx1,wy1]=toWorld(innerWidth,innerHeight);
   const umin=Math.floor(wy0/(TH/2))-3, umax=Math.ceil(wy1/(TH/2))+8;
   const vmin=Math.floor(wx0/(TW/2))-3, vmax=Math.ceil(wx1/(TW/2))+3;
@@ -505,6 +505,11 @@ function draw(){
       if(hv&&hv.s>1){ const [ax,ay]=blockAnchor(hv.x,hv.y,hv.s); if(x===ax&&y===ay) outline(ctx,hv.x,hv.y,hv.s,hv.ok?'rgba(255,255,255,.95)':'rgba(255,80,60,.95)'); }
     }
   }
+  if(rect){ const x0=Math.min(rect.a.x,rect.b.x), x1=Math.max(rect.a.x,rect.b.x), y0=Math.min(rect.a.y,rect.b.y), y1=Math.max(rect.a.y,rect.b.y);
+    const P=[tileCenter(x0,y0),tileCenter(x1,y0),tileCenter(x0,y1),tileCenter(x1,y1)]; let top=P[0],bot=P[0],lef=P[0],rig=P[0]; for(const q of P){ if(q[1]<top[1]) top=q; if(q[1]>bot[1]) bot=q; if(q[0]<lef[0]) lef=q; if(q[0]>rig[0]) rig=q; }
+    ctx.beginPath(); ctx.moveTo(top[0],top[1]-TH/2); ctx.lineTo(rig[0]+TW/2,rig[1]); ctx.lineTo(bot[0],bot[1]+TH/2); ctx.lineTo(lef[0]-TW/2,lef[1]); ctx.closePath();
+    ctx.fillStyle=mode==='delete'?'rgba(255,80,60,.22)':'rgba(255,255,255,.22)'; ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle=mode==='delete'?'rgba(255,80,60,.95)':'rgba(255,255,255,.95)'; ctx.stroke();
+    ctx.fillStyle='rgba(0,0,0,.55)'; ctx.font='bold 20px Nunito, sans-serif'; ctx.textAlign='center'; ctx.fillText((x1-x0+1)+' × '+(y1-y0+1),(lef[0]+rig[0])/2,top[1]-TH/2-10); }
   // night: darken, then add warm light pools
   if(L<1){ const theme=town?town.theme:'geen'; ctx.setTransform(dpr,0,0,dpr,0,0); const a=(1-L)*(theme==='halloween'?0.5:0.6);
     ctx.fillStyle=theme==='halloween'?`rgba(60,20,70,${a})`:`rgba(18,28,70,${a})`; ctx.fillRect(0,0,innerWidth,innerHeight);
@@ -586,25 +591,45 @@ function place(t,asTool){
 /* ---------- input ---------- */
 function toTile(sx,sy){ const [wx,wy]=toWorld(sx,sy); const vx=Math.round((wx/(TW/2)+wy/(TH/2))/2), vy=Math.round((wy/(TH/2)-wx/(TW/2))/2); const [x,y]=v2w(vx,vy); return {x,y}; }
 const SMIN=0.22, SMAX=2.5;
-const ptrs=new Map(); let drag=null, pinch=null;
+const ptrs=new Map(); let drag=null, pinch=null, rect=null;
+/* fill a dragged rectangle with the current tool (fences: only the border); in delete mode clear it */
+function applyRect(a,b){ const x0=Math.min(a.x,b.x), x1=Math.max(a.x,b.x), y0=Math.min(a.y,b.y), y1=Math.max(a.y,b.y); const n=(x1-x0+1)*(y1-y0+1); if(n>2500){ msg('Dat vlak is te groot (max. 2500 vakjes).'); return; }
+  const changes=[]; const tl=TOOLS[tool]; const border=(tool==='hek'||tool==='heg')&&n>1&&(x1>x0)&&(y1>y0); let count=0;
+  for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){
+    if(border&&x!==x0&&x!==x1&&y!==y0&&y!==y1) continue;
+    const cur=at(x,y);
+    if(mode==='delete'){ if(cur.t==='gras') continue; if(cur.t==='b'||cur.t==='o'){ removeBuildingAt(x,y,changes); } else if(cur.t==='water'&&cur.o){ changes.push({x,y,c:cur}); setCell(x,y,{t:'water'}); } else { changes.push({x,y,c:cur}); setCell(x,y,null); } count++; continue; }
+    if(cur.t==='b'||cur.t==='o') continue;            // never bulldoze buildings while painting
+    const v=tl.variants? Math.floor(Math.random()*tl.variants.length):0;
+    if(tl.onWater&&!tl.ground){ if(cur.t!=='water'||cur.o) continue; changes.push({x,y,c:cur}); setCell(x,y,{t:'water',o:tool,v}); count++; continue; }
+    let nt=tool;
+    if(tool==='weg'){ if(cur.t==='water'||cur.t==='brug') nt='brug'; else if(cur.t==='spoor'||cur.t==='overweg') nt='overweg'; }
+    if(tool==='spoor'){ if(cur.t==='water'||cur.t==='railbrug'||cur.t==='steiger') nt='railbrug'; else if(cur.t==='weg'||cur.t==='overweg') nt='overweg'; }
+    if(tool==='steiger'&&!isWaterT(cur.t)) continue;
+    if(tl.variants&&!tl.ground&&!(cur.t==='gras'||cur.t===tool)) continue;   // decorations only on grass
+    if(cur.t===nt&&!tl.variants) continue;
+    changes.push({x,y,c:cur}); setCell(x,y,{t:nt,v}); count++; }
+  if(changes.length){ undo.push(changes); if(undo.length>200) undo.shift(); saveSoon(); syncPopulation(); requestDraw(); }
+  if(count>1) msg(count+' vakjes '+(mode==='delete'?'gewist':'geplaatst')); }
 cv.addEventListener('pointerdown',e=>{
   cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y),s:view.s,cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,ox:view.ox,oy:view.oy}; drag=null; return; }
-  const painting=mode==='build' && paintMode && TOOLS[tool].ground && e.button===0;
-  drag={x:e.clientX,y:e.clientY,ox:view.ox,oy:view.oy,moved:false,painting,button:e.button};
-  if(painting) place(toTile(e.clientX,e.clientY));
+  const painting=paintMode && e.button===0 && (mode==='delete' || (mode==='build' && !TOOLS[tool].building));
+  drag={x:e.clientX,y:e.clientY,ox:view.ox,oy:view.oy,moved:false,painting,button:e.button,start:toTile(e.clientX,e.clientY)};
+  if(painting) rect={a:drag.start,b:drag.start};
 });
 cv.addEventListener('pointermove',e=>{
   if(ptrs.has(e.pointerId)) ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(pinch&&ptrs.size===2){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); const ns=Math.min(SMAX,Math.max(SMIN,pinch.s*d/pinch.d)); const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
     view.ox=mx-(pinch.cx-pinch.ox)*ns/pinch.s; view.oy=my-(pinch.cy-pinch.oy)*ns/pinch.s; view.s=ns; requestDraw(); return; }
   hover=toTile(e.clientX,e.clientY);
-  if(drag){ if(drag.painting){ place(hover); return; } const dx=e.clientX-drag.x, dy=e.clientY-drag.y; if(Math.hypot(dx,dy)>5) drag.moved=true; if(drag.moved){ view.ox=drag.ox+dx; view.oy=drag.oy+dy; } }
+  if(drag){ if(drag.painting){ rect={a:drag.start,b:hover}; requestDraw(); return; } const dx=e.clientX-drag.x, dy=e.clientY-drag.y; if(Math.hypot(dx,dy)>5) drag.moved=true; if(drag.moved){ view.ox=drag.ox+dx; view.oy=drag.oy+dy; } }
   requestDraw();
 });
 function endPtr(e){
   ptrs.delete(e.pointerId);
   if(pinch){ if(ptrs.size<2) pinch=null; drag=null; return; }
+  if(drag&&drag.painting){ const end=toTile(e.clientX,e.clientY); applyRect(drag.start,end); rect=null; }
   if(drag&&!drag.moved&&!drag.painting&&drag.button===0) tapTile(toTile(e.clientX,e.clientY));
   if(drag&&drag.button===2){ const tt=toTile(e.clientX,e.clientY); const d=describeAt(tt.x,tt.y); if(removeAt(tt.x,tt.y)) msg((d&&d.name?d.name:'Tegel')+' verwijderd'); }
   drag=null; requestDraw(); saveSoon();
@@ -634,7 +659,7 @@ function setCat(k,byUser){ cat=k; for(const q in catBtns) catBtns[q].classList.t
 }
 function setTool(k){ tool=k; if(mode!=='build'){ mode='build'; document.getElementById('mSelect').classList.remove('on'); document.getElementById('mDelete').classList.remove('on'); hideInfo(); cv.classList.toggle('pan',!paintMode); } for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); const tn=document.getElementById('toolNow'); if(tn) tn.textContent='▸ '+TOOLS[k].label; if(document.body.classList.contains('mobile')&&toolsEl.contains(document.activeElement)) setTimeout(()=>barEl.classList.remove('open'),120); }
 const modeBtn=document.getElementById('modeBtn');
-modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; modeBtn.textContent=paintMode?'\u270F\uFE0F Slepen: tekenen':'\u270B Slepen: schuiven'; modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
+modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; modeBtn.textContent=paintMode?'\u25A6 Slepen: vlak vullen':'\u270B Slepen: schuiven'; if(paintMode) msg('Sleep een kader: alles erin wordt gevuld (hek/heg: alleen de rand). Zet terug op schuiven om rond te kijken.',true); modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
 function home(){ view.s=innerWidth<600?.32:(innerWidth<1000?.42:.5); view.ox=innerWidth/2; view.oy=innerHeight/2; requestDraw(); }
 document.getElementById('homeBtn').addEventListener('click',home);
 const barEl=document.getElementById('bar'), barT=document.getElementById('barToggle'), actsEl=document.getElementById('acts'), menuBtn=document.getElementById('menuBtn');
