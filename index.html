@@ -119,6 +119,9 @@ body.mobile #toolNow{display:inline-block}
 #modes button{padding:4px 9px;border-radius:999px;font-size:15px;line-height:1}
 #modes button.on{background:var(--sel);border-color:var(--sel);color:#fff}
 #modes #mDelete.on{background:var(--danger);border-color:var(--danger);color:#fff}
+#movebar{left:50%;transform:translateX(-50%);top:calc(70px + env(safe-area-inset-top,0px));display:flex;gap:8px;align-items:center;font-size:13px;font-weight:700;z-index:7}
+#movebar[hidden]{display:none}
+body.mobile #movebar{top:calc(56px + env(safe-area-inset-top,0px))}
 #info{left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;max-width:min(92vw,360px);z-index:7}
 #info[hidden]{display:none}
 #infoTitle{font-weight:800;font-size:15px} #infoText{font-size:12.5px;color:var(--panel-muted);font-weight:600}
@@ -150,9 +153,10 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 <div id="rot" class="panel"><button id="rotL2" type="button" title="Draai linksom (Q)">&#8634;</button><button id="rotR2" type="button" title="Draai rechtsom (E)">&#8635;</button></div>
 <div id="credit" class="panel">Gebouwen: Cozy Isometric Town · Boerderij: Guilherme Laso · Tegels &amp; auto's: Kenney.nl</div>
 <div id="msg" role="status"></div>
+<div id="movebar" class="panel" hidden><span>Verplaatsen: tik op de nieuwe plek</span><button id="moveCancel">Annuleren</button></div>
 <div id="info" class="panel" hidden>
   <div id="infoTitle"></div><div id="infoText"></div>
-  <div class="row"><button id="infoRot">&#8635; Draai kwartslag</button><button id="infoDel" class="danger">&#128465;&#65039; Verwijderen</button><button id="infoClose">Sluiten</button></div>
+  <div class="row"><button id="infoMove">&#10021; Verplaatsen</button><button id="infoRot">&#8635; Draai kwartslag</button><button id="infoDel" class="danger">&#128465;&#65039; Verwijderen</button><button id="infoClose">Sluiten</button></div>
 </div>
 <div id="exdlg" class="ovl" hidden>
   <div id="exbox" role="dialog" aria-label="Voorbeelddorpen">
@@ -181,7 +185,7 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 <script>
 (async function(){
 'use strict';
-const BUILD='20261027155725';
+const BUILD='20261027161307';
 const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u+'?v='+BUILD,{cache:'no-cache'}).then(r=>r.json())));
 const SHORT={'Slepen: schuiven':'Schuiven','Slepen: vlak vullen':'Vlak vullen','Ongedaan maken':'Ongedaan','Volledig scherm':'Volledig','Naar midden':'Midden','Alles wissen':'Wissen','Voorbeelden':'Voorbeelden','Vernieuwen':'Vernieuwen','Haal de nieuwste versie op':'Vernieuwen','Terug naar het midden':'Midden','Voorbeelddorpen ter inspiratie':'Voorbeelden','Wissel tussen schuiven en een vlak vullen':'Schuiven'};
 const TW=100, TH=50;
@@ -254,7 +258,7 @@ const RANKS=[[0,'Leeg land'],[1,'Gehucht'],[40,'Dorp'],[120,'Groot dorp'],[300,'
 
 /* ---------- state: a sparse, endless grid ---------- */
 const GRAS=Object.freeze({t:'gras'});
-let cells=new Map(), tool='b:cottage', cat='wonen', paintMode=false, undo=[], mode='build', sel=null;
+let cells=new Map(), tool='b:cottage', cat='wonen', paintMode=false, undo=[], mode='build', sel=null, moving=null;
 let view={s:1,ox:0,oy:0}, hover=null, drawPending=false;
 const key=(x,y)=>x+','+y;
 const at=(x,y)=>cells.get(key(x,y))||GRAS;
@@ -513,6 +517,7 @@ function draw(){
       if(hv&&hv.s>1){ const [ax,ay]=blockAnchor(hv.x,hv.y,hv.s); if(x===ax&&y===ay) outline(ctx,hv.x,hv.y,hv.s,hv.ok?'rgba(255,255,255,.95)':'rgba(255,80,60,.95)'); }
     }
   }
+  if(moving&&hover){ ctx.globalAlpha=0.65; const s=moving.s; if(moving.kind==='b'){ const [bx,by]=blockPos(hover.x,hover.y,s); blit(ctx,'obj:'+moving.k,bx,by,facingFlip(moving.f)); } else { const [cx,cy]=tileCenter(hover.x,hover.y); const vs=TOOLS[moving.kind==='w'?moving.o:moving.t].variants; blit(ctx,vs[moving.v%vs.length],cx,cy,facingFlip(moving.f)); } ctx.globalAlpha=1; }
   if(rect){ const x0=Math.min(rect.a.x,rect.b.x), x1=Math.max(rect.a.x,rect.b.x), y0=Math.min(rect.a.y,rect.b.y), y1=Math.max(rect.a.y,rect.b.y);
     const P=[tileCenter(x0,y0),tileCenter(x1,y0),tileCenter(x0,y1),tileCenter(x1,y1)]; let top=P[0],bot=P[0],lef=P[0],rig=P[0]; for(const q of P){ if(q[1]<top[1]) top=q; if(q[1]>bot[1]) bot=q; if(q[0]<lef[0]) lef=q; if(q[0]>rig[0]) rig=q; }
     ctx.beginPath(); ctx.moveTo(top[0],top[1]-TH/2); ctx.lineTo(rig[0]+TW/2,rig[1]); ctx.lineTo(bot[0],bot[1]+TH/2); ctx.lineTo(lef[0]-TW/2,lef[1]); ctx.closePath();
@@ -536,6 +541,7 @@ function drawWeather(){
 
 /* ---------- placement ---------- */
 function hoverInfo(){
+  if(moving&&hover) return {x:hover.x,y:hover.y,s:moving.s,ok:canDrop(hover.x,hover.y)};
   if(sel) return {x:sel.x,y:sel.y,s:sel.s,ok:true};
   if(!hover) return null; if(mode!=='build'){ const d=describeAt(hover.x,hover.y); return d?{x:d.x,y:d.y,s:d.s,ok:mode!=='delete'}:{x:hover.x,y:hover.y,s:1,ok:true}; } const t=TOOLS[tool];
   if(t.building){ const s=t.size; return {x:hover.x,y:hover.y,s,ok:canPlace(hover.x,hover.y,s)}; }
@@ -552,8 +558,24 @@ function describeAt(x,y){ const c=at(x,y); if(c.t==='b'||c.t==='o'){ const ox=c.
   const names={weg:'Weg',brug:'Brug',overweg:'Overweg',spoor:'Spoor',railbrug:'Spoorbrug',steiger:'Steiger',water:'Water',pad:'Plein',voetpad:'Voetpad',kiezel:'Kiezelpad',fiets:'Fietspad',zand:'Zand',aarde:'Aarde',mais:'Maïsveld',wiet:'Wietveld',hek:'Hek',o:'',gras:'Gras'};
   return {x,y,s:1,name:names[c.t]||c.t,text:'',removable:c.t!=='gras'}; }
 const infoEl=document.getElementById('info');
-function showInfo(d){ sel=d; document.getElementById('infoTitle').textContent=d.name; document.getElementById('infoText').textContent=d.text; document.getElementById('infoDel').hidden=!d.removable; infoEl.hidden=false; requestDraw(); }
+function movable(x,y){ const c=at(x,y); return c.t==='b'||c.t==='o'||(TOOLS[c.t]&&TOOLS[c.t].variants)||(c.t==='water'&&!!c.o); }
+function showInfo(d){ sel=d; document.getElementById('infoTitle').textContent=d.name; document.getElementById('infoText').textContent=d.text; document.getElementById('infoDel').hidden=!d.removable; const mv=movable(d.x,d.y); document.getElementById('infoMove').hidden=!mv; document.getElementById('infoRot').hidden=!mv; infoEl.hidden=false; requestDraw(); }
 function hideInfo(){ sel=null; infoEl.hidden=true; requestDraw(); }
+/* moving: pick an object up, carry it under the cursor, drop it on a free spot */
+function pickUp(x,y){ const c=at(x,y); if(c.t==='b'||c.t==='o'){ const ox=c.t==='b'?x:c.x, oy=c.t==='b'?y:c.y; const o=at(ox,oy); if(o.t!=='b') return false; moving={kind:'b',k:o.k,s:o.s,f:o.f||0,from:{x:ox,y:oy}}; }
+  else if(TOOLS[c.t]&&TOOLS[c.t].variants){ moving={kind:'v',t:c.t,v:c.v||0,f:c.f||0,s:1,from:{x,y}}; }
+  else if(c.t==='water'&&c.o){ moving={kind:'w',o:c.o,v:c.v||0,f:c.f||0,s:1,from:{x,y}}; }
+  else return false;
+  // lift it out of the world (temporarily) so the old spot counts as free
+  moving.changes=[]; if(moving.kind==='b') removeBuildingAt(moving.from.x,moving.from.y,moving.changes); else if(moving.kind==='w'){ moving.changes.push({x,y,c}); setCell(x,y,{t:'water'}); } else { moving.changes.push({x,y,c}); setCell(x,y,null); }
+  mode='move'; hideInfo(); cv.classList.remove('pan'); document.getElementById('movebar').hidden=false; requestDraw(); return true; }
+function canDrop(x,y){ if(!moving) return false; if(moving.kind==='b') return canPlace(x,y,moving.s); if(moving.kind==='w'){ const c=at(x,y); return c.t==='water'&&!c.o; } const c=at(x,y); return c.t==='gras'; }
+function dropAt(x,y){ if(!moving) return; if(!canDrop(x,y)){ msg('Hier past het niet.'); return; }
+  const ch=moving.changes; if(moving.kind==='b'){ for(let dy=0;dy<moving.s;dy++) for(let dx=0;dx<moving.s;dx++) ch.push({x:x+dx,y:y+dy,c:at(x+dx,y+dy)}); setB(x,y,moving.k); const o=at(x,y); setCell(x,y,{...o,f:moving.f}); }
+  else if(moving.kind==='w'){ ch.push({x,y,c:at(x,y)}); setCell(x,y,{t:'water',o:moving.o,v:moving.v,f:moving.f}); }
+  else { ch.push({x,y,c:at(x,y)}); setCell(x,y,{t:moving.t,v:moving.v,f:moving.f}); }
+  document.getElementById('movebar').hidden=true; undo.push(ch); if(undo.length>200) undo.shift(); moving=null; mode='build'; cv.classList.toggle('pan',!paintMode); saveSoon(); syncPopulation(); requestDraw(); msg('Verplaatst'); }
+function cancelMove(){ if(!moving) return; document.getElementById('movebar').hidden=true; for(const c of moving.changes) setCell(c.x,c.y,c.c); moving=null; mode='build'; cv.classList.toggle('pan',!paintMode); syncPopulation(); requestDraw(); }
 function rotateAt(x,y){ const c=at(x,y); const changes=[];
   if(c.t==='b'||c.t==='o'){ const ox=c.t==='b'?x:c.x, oy=c.t==='b'?y:c.y; const o=at(ox,oy); if(o.t!=='b') return false; changes.push({x:ox,y:oy,c:o}); setCell(ox,oy,{...o,f:((o.f||0)+1)%4}); }
   else if((TOOLS[c.t]&&TOOLS[c.t].variants)||(c.t==='water'&&c.o)){ changes.push({x,y,c}); setCell(x,y,{...c,f:((c.f||0)+1)%4}); }
@@ -567,15 +589,18 @@ function removeAt(x,y){ const c=at(x,y); const changes=[];
   else if(c.t!=='gras'){ changes.push({x,y,c}); setCell(x,y,null); }
   if(changes.length){ undo.push(changes); if(undo.length>200) undo.shift(); saveSoon(); syncPopulation(); requestDraw(); return true; } return false; }
 document.getElementById('infoRot').addEventListener('click',()=>{ if(sel){ rotateAt(sel.x,sel.y); } });
+document.getElementById('infoMove').addEventListener('click',()=>{ if(sel) pickUp(sel.x,sel.y); });
+document.getElementById('moveCancel').addEventListener('click',cancelMove);
 document.getElementById('infoDel').addEventListener('click',()=>{ if(sel){ removeAt(sel.x,sel.y); msg(sel.name+' verwijderd'); hideInfo(); } });
 document.getElementById('infoClose').addEventListener('click',hideInfo);
-function setMode(m){ mode=m; document.getElementById('mSelect').classList.toggle('on',m==='select'); document.getElementById('mRotate').classList.toggle('on',m==='rotate'); document.getElementById('mDelete').classList.toggle('on',m==='delete'); for(const q in btns) btns[q].b.classList.toggle('on',m==='build'&&q===tool); cv.classList.toggle('pan',m==='build'&&!paintMode); if(m!=='select') hideInfo();
+function setMode(m){ if(moving) cancelMove(); mode=m; document.getElementById('mSelect').classList.toggle('on',m==='select'); document.getElementById('mRotate').classList.toggle('on',m==='rotate'); document.getElementById('mDelete').classList.toggle('on',m==='delete'); for(const q in btns) btns[q].b.classList.toggle('on',m==='build'&&q===tool); cv.classList.toggle('pan',m==='build'&&!paintMode); if(m!=='select') hideInfo();
   const tn=document.getElementById('toolNow'); if(tn) tn.textContent=m==='select'?'▸ Selecteren':m==='delete'?'▸ Slopen':m==='rotate'?'▸ Draaien':'▸ '+TOOLS[tool].label; if(m!=='build'){ barEl.classList.remove('open'); msg(m==='select'?'Tik op iets in je dorp':m==='rotate'?'Tik op een gebouw of object om het te draaien':'Tik op wat je wilt weghalen'); } }
 document.getElementById('mSelect').addEventListener('click',()=>setMode(mode==='select'?'build':'select'));
 document.getElementById('mDelete').addEventListener('click',()=>setMode(mode==='delete'?'build':'delete'));
 document.getElementById('mRotate').addEventListener('click',()=>setMode(mode==='rotate'?'build':'rotate'));
 function tapTile(t){ if(!t) return; if(mode==='select'){ const d=describeAt(t.x,t.y); if(d&&d.name&&d.removable) showInfo(d); else hideInfo(); return; }
-  if(mode==='rotate'){ if(rotateAt(t.x,t.y)) msg('Kwartslag gedraaid'); return; } if(mode==='delete'){ const d=describeAt(t.x,t.y); if(removeAt(t.x,t.y)) msg((d&&d.name?d.name:'Tegel')+' verwijderd'); return; } place(t); }
+  if(mode==='rotate'){ if(rotateAt(t.x,t.y)) msg('Kwartslag gedraaid'); return; }
+  if(mode==='move'){ dropAt(t.x,t.y); return; } if(mode==='delete'){ const d=describeAt(t.x,t.y); if(removeAt(t.x,t.y)) msg((d&&d.name?d.name:'Tegel')+' verwijderd'); return; } place(t); }
 function place(t,asTool){
   if(!t) return; let tk=asTool||tool; const tl=TOOLS[tk]; const changes=[];
   if(tl.building){
@@ -673,7 +698,7 @@ function setCat(k,byUser){ cat=k; for(const q in catBtns) catBtns[q].classList.t
     b.append(ic,l); b.addEventListener('click',()=>{ setTool(tk); if(document.body.classList.contains('mobile')) barEl.classList.remove('open'); }); toolsEl.append(b); btns[tk]={b,ic}; drawIcon(ic.getContext('2d'),tk); }
   for(const q in btns) btns[q].b.classList.toggle('on',q===tool);
 }
-function setTool(k){ tool=k; if(mode!=='build'){ mode='build'; document.getElementById('mSelect').classList.remove('on'); document.getElementById('mRotate').classList.remove('on'); document.getElementById('mDelete').classList.remove('on'); hideInfo(); cv.classList.toggle('pan',!paintMode); } for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); const tn=document.getElementById('toolNow'); if(tn) tn.textContent='▸ '+TOOLS[k].label; if(document.body.classList.contains('mobile')&&toolsEl.contains(document.activeElement)) setTimeout(()=>barEl.classList.remove('open'),120); }
+function setTool(k){ tool=k; if(moving) cancelMove(); if(mode!=='build'){ mode='build'; document.getElementById('mSelect').classList.remove('on'); document.getElementById('mRotate').classList.remove('on'); document.getElementById('mDelete').classList.remove('on'); hideInfo(); cv.classList.toggle('pan',!paintMode); } for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); const tn=document.getElementById('toolNow'); if(tn) tn.textContent='▸ '+TOOLS[k].label; if(document.body.classList.contains('mobile')&&toolsEl.contains(document.activeElement)) setTimeout(()=>barEl.classList.remove('open'),120); }
 const modeBtn=document.getElementById('modeBtn');
 modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; refreshQuick(); if(paintMode) msg('Sleep een kader: alles erin wordt gevuld (hek/heg: alleen de rand). Zet terug op schuiven om rond te kijken.',true); modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
 function home(){ view.s=innerWidth<600?.32:(innerWidth<1000?.42:.5); view.ox=innerWidth/2; view.oy=innerHeight/2; requestDraw(); }
@@ -682,7 +707,7 @@ const barEl=document.getElementById('bar'), barT=document.getElementById('barTog
 const mq=matchMedia('(max-height:560px),(max-width:600px)'); function applyMobile(){ document.body.classList.toggle('mobile',mq.matches); if(!mq.matches){ actsEl.classList.remove('open'); } for(const b of actsEl.querySelectorAll('button')){ const l=b.querySelector('.lbl'); const f=b.dataset.full; if(l&&f){ l.textContent=mq.matches?(SHORT[f]||f):f; } } if(typeof refreshQuick==='function') refreshQuick(); } mq.addEventListener('change',applyMobile); applyMobile();
 menuBtn.addEventListener('click',()=>actsEl.classList.toggle('open'));
 cv.addEventListener('pointerdown',()=>{ actsEl.classList.remove('open'); if(document.body.classList.contains('mobile')) barEl.classList.remove('open'); });
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(mode!=='build') setMode('build'); hideInfo(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(moving) cancelMove(); else if(mode!=='build') setMode('build'); hideInfo(); } });
 document.getElementById('fsBtn').addEventListener('click',()=>{ const el=document.documentElement; const req=el.requestFullscreen||el.webkitRequestFullscreen; if(document.fullscreenElement){ document.exitFullscreen(); return; } if(req){ req.call(el).catch(()=>msg('Volledig scherm lukt hier niet. Tip: zet de site op je beginscherm (Delen → Zet op beginscherm), dan opent hij zonder browserbalken.',true)); } else msg('Volledig scherm lukt hier niet. Tip: zet de site op je beginscherm (Delen → Zet op beginscherm), dan opent hij zonder browserbalken.',true); actsEl.classList.remove('open'); }); barT.addEventListener('click',()=>{ barEl.classList.toggle('collapsed'); barT.innerHTML=barEl.classList.contains('collapsed')?'&#9650;':'&#9660;'; });
 for(const b of actsEl.querySelectorAll('button')){ const l=b.querySelector('.lbl'); if(l){ b.dataset.full=l.textContent; if(!b.title) b.title=l.textContent; if(document.body.classList.contains('mobile')) l.textContent=SHORT[b.dataset.full]||b.dataset.full; } b.addEventListener('click',()=>{ if(!document.body.classList.contains('mobile')) return; if(['setBtn','exBtn','fsBtn','reloadBtn'].includes(b.id)) actsEl.classList.remove('open'); }); }
 const SEASON_ICON={zomer:'\u2600\uFE0F',lente:'\u{1F337}',herfst:'\u{1F342}',winter:'\u2744\uFE0F'};
