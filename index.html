@@ -119,7 +119,7 @@ body.mobile #toolNow{display:inline-block}
 #modes button{padding:4px 9px;border-radius:999px;font-size:15px;line-height:1}
 #modes button.on{background:var(--sel);border-color:var(--sel);color:#fff}
 #modes #mDelete.on{background:var(--danger);border-color:var(--danger);color:#fff}
-#modes #mUndo{margin-left:4px} #modes #mUndo:disabled{opacity:.45;cursor:default}
+#modes #mUndo{margin-left:4px;display:grid;place-items:center} #modes #mUndo svg{display:block} #modes #mUndo:disabled{opacity:.4;cursor:default}
 #movebar{left:50%;transform:translateX(-50%);top:calc(70px + env(safe-area-inset-top,0px));display:flex;gap:8px;align-items:center;font-size:13px;font-weight:700;z-index:7}
 #movebar[hidden]{display:none}
 body.mobile #movebar{top:calc(56px + env(safe-area-inset-top,0px))}
@@ -150,7 +150,7 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
   <button id="clearBtn" class="danger">&#128465;&#65039; <span class="lbl">Alles wissen</span></button>
   <span id="confirm" hidden>Zeker? <button id="yes" class="danger">Ja, wissen</button><button id="no">Nee</button></span>
 </div>
-<div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"><span id="modes"><button id="mSelect" type="button" title="Selecteren: tik op iets in je dorp voor info of om te verwijderen">&#128269;</button><button id="mRotate" type="button" title="Draaien: tik op een gebouw of object om het een kwartslag te draaien">&#8635;</button><button id="mUndo" type="button" title="Ongedaan maken (Cmd/Ctrl+Z)">&#8630;</button><button id="mDelete" type="button" class="danger" title="Slopen: tik op iets om het weg te halen">&#128465;&#65039;</button></span><span id="toolNow"></span></div><div id="tools"></div></div>
+<div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"><span id="modes"><button id="mSelect" type="button" title="Selecteren: tik op iets in je dorp voor info of om te verwijderen">&#128269;</button><button id="mRotate" type="button" title="Draaien: tik op een gebouw of object om het een kwartslag te draaien">&#8635;</button><button id="mUndo" type="button" title="Ongedaan maken (Cmd/Ctrl+Z)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d9342b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button><button id="mDelete" type="button" class="danger" title="Slopen: tik op iets om het weg te halen">&#128465;&#65039;</button></span><span id="toolNow"></span></div><div id="tools"></div></div>
 <div id="rot" class="panel"><button id="rotL2" type="button" title="Draai linksom (Q)">&#8634;</button><button id="rotR2" type="button" title="Draai rechtsom (E)">&#8635;</button></div>
 <div id="credit" class="panel">Gebouwen: Cozy Isometric Town · Boerderij: Guilherme Laso · Tegels &amp; auto's: Kenney.nl</div>
 <div id="msg" role="status"></div>
@@ -186,7 +186,7 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 <script>
 (async function(){
 'use strict';
-const BUILD='20261027162045';
+const BUILD='20261027162329';
 const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u+'?v='+BUILD,{cache:'no-cache'}).then(r=>r.json())));
 const SHORT={'Slepen: schuiven':'Schuiven','Slepen: vlak vullen':'Vlak vullen','Ongedaan maken':'Ongedaan','Volledig scherm':'Volledig','Naar midden':'Midden','Alles wissen':'Wissen','Voorbeelden':'Voorbeelden','Vernieuwen':'Vernieuwen','Haal de nieuwste versie op':'Vernieuwen','Terug naar het midden':'Midden','Voorbeelddorpen ter inspiratie':'Voorbeelden','Wissel tussen schuiven en een vlak vullen':'Schuiven'};
 const TW=100, TH=50;
