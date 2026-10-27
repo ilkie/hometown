@@ -415,8 +415,12 @@ function spawnCar(tiles){ const [x,y]=tiles[Math.floor(Math.random()*tiles.lengt
 function spawnPerson(tiles){ const [x,y]=tiles[Math.floor(Math.random()*tiles.length)]; return {x,y,dir:Math.floor(Math.random()*4),t:Math.random(),speed:0.25+Math.random()*0.2,key:DATA.people[Math.floor(Math.random()*DATA.people.length)],wait:0,flip:false,ph:Math.random()*6}; }
 function railTiles(){ const r=[]; for(const [k,c] of cells) if(isRailT(c.t)){ const [x,y]=k.split(',').map(Number); r.push([x,y]); } return r; }
 function spawnTrain(tiles){ const [x,y]=tiles[Math.floor(Math.random()*tiles.length)]; const dir=pickDir(x,y,Math.floor(Math.random()*4),isRail); if(dir<0) return null; return {x,y,dir,t:0,speed:1.5,trail:[]}; }
-function syncTrains(){ const rt=railTiles(); const want=rt.length<8?0:Math.min(4,Math.max(1,Math.floor(rt.length/14)));
-  trains=trains.filter(tr=>isRail(tr.x,tr.y)); while(trains.length>want) trains.pop(); let g=40; while(trains.length<want&&g--){ const tr=spawnTrain(rt); if(tr) trains.push(tr); } }
+/* single track: one train per connected stretch of rail, so trains never meet head-on */
+function railComponents(){ const seen=new Set(), comps=[]; for(const [x0,y0] of railTiles()){ const k0=key(x0,y0); if(seen.has(k0)) continue; seen.add(k0); const comp=[[x0,y0]], q=[[x0,y0]];
+  while(q.length){ const [x,y]=q.pop(); for(const [dx,dy] of DIRS){ const nx=x+dx,ny=y+dy,nk=key(nx,ny); if(!seen.has(nk)&&isRail(nx,ny)){ seen.add(nk); comp.push([nx,ny]); q.push([nx,ny]); } } } comps.push(comp); } return comps; }
+function syncTrains(){ const comps=railComponents().filter(c=>c.length>=8).sort((a,b)=>b.length-a.length).slice(0,4); const idx=new Map(); comps.forEach((c,i)=>{ for(const [x,y] of c) idx.set(key(x,y),i); });
+  const used=new Set(); trains=trains.filter(tr=>{ const i=idx.get(key(tr.x,tr.y)); if(i===undefined||used.has(i)) return false; used.add(i); return true; });
+  comps.forEach((c,i)=>{ if(used.has(i)) return; let g=20; while(g--){ const tr=spawnTrain(c); if(tr){ trains.push(tr); break; } } }); }
 function stepTrains(dt){ for(const tr of trains){ let [dx,dy]=DIRS[tr.dir]; if(!isRail(tr.x+dx,tr.y+dy)){ const nd=pickDir(tr.x,tr.y,tr.dir,isRail); if(nd<0){ tr.dead=true; continue; } tr.dir=nd; tr.t=0; [dx,dy]=DIRS[tr.dir]; }
     tr.t+=dt*tr.speed; if(tr.t>=1){ tr.trail.unshift({x:tr.x,y:tr.y,dir:tr.dir}); if(tr.trail.length>3) tr.trail.pop(); tr.x+=dx; tr.y+=dy; tr.t-=1; const nd=pickDir(tr.x,tr.y,tr.dir,isRail); if(nd<0){ tr.dead=true; continue; } tr.dir=nd; } }
   trains=trains.filter(tr=>!tr.dead); }
@@ -428,9 +432,15 @@ function syncPopulation(){
   people=people.filter(p=>walkable(p.x,p.y)); while(people.length>wantP) people.pop(); guard=60; while(people.length<wantP&&guard--) people.push(spawnPerson(wt));
   updateStats();
 }
+/* lanes: everyone keeps to the right of the tile centre (in world units); the offset eases so corners don't jump */
+const LANE={car:0.27,person:0.17};
+function keepLane(a,side,dt){ const [dx,dy]=DIRS[a.dir]; const tx=-dy*side, ty=dx*side; if(a.lx===undefined){ a.lx=tx; a.ly=ty; return; } const k=Math.min(1,dt*6); a.lx+=(tx-a.lx)*k; a.ly+=(ty-a.ly)*k; }
+/* is there another agent in the same lane within `max` tiles ahead? (same direction, on the same line) */
+function blockedAhead(list,c,max){ const [dx,dy]=DIRS[c.dir]; for(const d of list){ if(d===c||d.dir!==c.dir) continue; const wx=d.x-c.x, wy=d.y-c.y; if(wx*dy-wy*dx) continue; const s=wx*dx+wy*dy+d.t-c.t; if(s>0&&s<max) return true; } return false; }
 function stepAgents(dt){
   for(const c of cars){
     let [dx,dy]=DIRS[c.dir]; if(!isRoad(c.x+dx,c.y+dy)){ const nd=pickDir(c.x,c.y,c.dir,isRoad); if(nd<0){ c.dead=true; continue; } c.dir=nd; c.t=0; [dx,dy]=DIRS[c.dir]; }
+    keepLane(c,LANE.car,dt); if(blockedAhead(cars,c,0.8)) continue;
     c.t+=dt*c.speed; if(c.t>=1){ c.x+=dx; c.y+=dy; c.t-=1; const nd=pickDir(c.x,c.y,c.dir,isRoad); if(nd<0){ c.dead=true; continue; } c.dir=nd; }
   }
   cars=cars.filter(c=>!c.dead); stepTrains(dt); stepBoats(dt); stepAnimals(dt); clock=(clock+dt/DAY_LEN)%1; sound.tick(dt);
@@ -438,16 +448,16 @@ function stepAgents(dt){
     if(p.wait>0){ p.wait-=dt; continue; }
     if(p.path&&p.path.length&&p.t===0){ p.dir=p.path[0]; }
     let [dx,dy]=DIRS[p.dir]; if(!walkable(p.x+dx,p.y+dy)){ p.path=null; const nd=pickDir(p.x,p.y,p.dir,walkable); if(nd<0){ p.wait=1; continue; } p.dir=nd; p.t=0; [dx,dy]=DIRS[p.dir]; }
-    p.flip=(p.dir===2||p.dir===3);
+    p.flip=(p.dir===2||p.dir===3); keepLane(p,LANE.person,dt);
     p.t+=dt*p.speed*((SNOWY&&at(p.x,p.y).t==='water')?2.2:1); if(p.t>=1){ p.x+=dx; p.y+=dy; p.t=0; if(p.path&&p.path.length){ p.path.shift(); if(!p.path.length){ p.path=null; p.wait=2+Math.random()*4; continue; } }
       else { if(Math.random()<0.5){ newGoal(p); if(p.path) continue; } if(Math.random()<0.25) p.wait=0.8+Math.random()*2; const nd=pickDir(p.x,p.y,p.dir,walkable); if(nd<0) p.wait=1; else p.dir=nd; } }
   }
 }
-function agentPos(a){ const [dx,dy]=DIRS[a.dir]; const [ax,ay]=tileCenter(a.x,a.y); const [bx,by]=tileCenter(a.x+dx,a.y+dy); const px=ax+(bx-ax)*a.t, py=ay+(by-ay)*a.t;
+function agentPos(a){ const [dx,dy]=DIRS[a.dir]; const [px,py]=tileCenter(a.x+dx*a.t+(a.lx||0), a.y+dy*a.t+(a.ly||0));
   // depth tile: the view tile whose diamond contains the feet, computed from screen position (so a walker is never covered by the tile ahead)
   const vx=Math.round((px/(TW/2)+py/(TH/2))/2), vy=Math.round((py/(TH/2)-px/(TW/2))/2); const [tx,ty]=v2w(vx,vy); return [px,py,tx,ty]; }
 function agentsByTile(){ const m=new Map(); const put=(k,v)=>{ if(!m.has(k)) m.set(k,[]); m.get(k).push(v); };
-  for(const c of cars){ const [px,py,tx,ty]=agentPos(c); const [dx,dy]=DIRS[vdir(c.dir)]; const sx=dx*TW/2-dy*TW/2, sy=dx*TH/2+dy*TH/2; const L=Math.hypot(sx,sy); const ox=-sy/L*11, oy=sx/L*11; put(key(tx,ty),{kind:'car',x:px+ox,y:py+oy,spr:c.key+'_'+DNAME[vdir(c.dir)]}); }
+  for(const c of cars){ const [px,py,tx,ty]=agentPos(c); put(key(tx,ty),{kind:'car',x:px,y:py,spr:c.key+'_'+DNAME[vdir(c.dir)],sc:0.82}); }
   for(const tr of trains){ const segs=[{x:tr.x,y:tr.y,dir:tr.dir,spr:'loco'},...tr.trail.slice(0,2).map((s,i)=>({...s,spr:i?'wagon2':'wagon1'}))];
     for(const sg of segs){ const [px,py,tx,ty]=agentPos({x:sg.x,y:sg.y,dir:sg.dir,t:tr.t}); put(key(tx,ty),{kind:'car',x:px,y:py,spr:sg.spr+'_'+DNAME[vdir(sg.dir)]}); } }
   const now=performance.now()/1000;
@@ -455,7 +465,7 @@ function agentsByTile(){ const m=new Map(); const put=(k,v)=>{ if(!m.has(k)) m.s
   for(const b of boats){ const [px,py,tx,ty]=agentPos(b); const bob=Math.sin(now*1.5+b.ph)*1.5; put(key(tx,ty),{kind:'person',x:px,y:py+bob,spr:b.key,flip:(vdir(b.dir)>=2)}); }
   for(const p of people){ const [px,py,tx,ty]=agentPos(p); const onIce=SNOWY&&at(p.x,p.y).t==='water'; const bob=(p.wait>0||onIce)?0:Math.abs(Math.sin((now*6)+p.ph))*2.5; put(key(tx,ty),{kind:'person',x:px,y:py-bob,spr:p.key,flip:(vdir(p.dir)>=2)}); }
   return m; }
-function drawAgent(a){ if(a.kind==='person'&&a.flip){ ctx.save(); ctx.translate(a.x,a.y); ctx.scale(-1,1); blit(ctx,a.spr,0,0); ctx.restore(); } else blit(ctx,a.spr,a.x,a.y); }
+function drawAgent(a){ const fl=a.kind==='person'&&a.flip, sc=a.sc||1; if(fl||sc!==1){ ctx.save(); ctx.translate(a.x,a.y); ctx.scale(fl?-sc:sc,sc); blit(ctx,a.spr,0,0); ctx.restore(); } else blit(ctx,a.spr,a.x,a.y); }
 let tickAcc=0;
 function tick(now){ if(!animOn) return; SNOWY=(season()==='winter')||(town&&town.theme==='kerst'); const dt=Math.min(0.1,(now-(lastT||now))/1000); lastT=now; stepAgents(dt);
   tickAcc+=dt; const frame=view.s<0.6? 1/25 : 0; if(town&&(town.daymode==='auto'||season()==='winter'||town.theme!=='geen')) requestDraw(); if(tickAcc>=frame){ tickAcc=0; requestDraw(); } requestAnimationFrame(tick); }
