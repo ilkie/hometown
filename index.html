@@ -207,6 +207,7 @@ const TOOLS={
   sneeuwpop:{label:'Sneeuwpop', cat:'feest', variants:['sneeuwpop']},
   pompoenen:{label:'Pompoenen', cat:'feest', variants:['pompoenen'], glow:true},
   mais:  {label:'Maïsveld', cat:'boerderij', ground:true, icon:'akker'},
+  wiet:  {label:'Wietveld', cat:'boerderij', ground:true, icon:'wietveld'},
   hek:   {label:'Hek', cat:'boerderij', ground:true, over:true, icon:'hek_NS'},
   boom:  {label:'Boom',   cat:'natuur', variants:['treeTall','treeShort','treeAltTall','coniferTall','coniferShort','coniferAltTall']},
   flat3: {label:'Flat 3 hoog', cat:'wonen', variants:['flat3_rood','flat3_wit','flat3_grijs','flat3_geel','flat3_beige'], pop:12},
@@ -296,6 +297,7 @@ function groundSprite(x,y,cell){
     case 'voetpad': case 'kiezel': case 'zand': case 'aarde': return cell.t;
     case 'fiets': return FIETS[rotMask(nbMask(x,y,c=>c.t==='fiets'))]||'fiets_0';
     case 'mais':  return 'akker';
+    case 'wiet':  return 'wietveld';
     default:      { const g=groundSet(); return g? g : ((((x*7+y*13)%5)+5)%5? 'grass':'grass2'); }
   }
 }
@@ -332,7 +334,7 @@ function syncBoats(){ const wt=waterTiles(); const want=SNOWY?0:(wt.length<10?0:
 }
 /* animals: sheep graze near farms, ducks swim, dogs stroll the paths */
 const FARMY=new Set(['schuur','koeien','akker','bieten','molen','kraam','appelboom']);
-function grazeTiles(){ const seen=new Set(), r=[]; for(const [k,c] of cells){ if(c.t==='b'&&FARMY.has(c.k)||c.t==='mais'||c.t==='hek'){ const [x,y]=k.split(',').map(Number); for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){ const nx=x+dx,ny=y+dy,nk=key(nx,ny); if(!seen.has(nk)&&at(nx,ny).t==='gras'){ seen.add(nk); r.push([nx,ny]); } } } } return r; }
+function grazeTiles(){ const seen=new Set(), r=[]; for(const [k,c] of cells){ if(c.t==='b'&&FARMY.has(c.k)||c.t==='mais'||c.t==='wiet'||c.t==='hek'){ const [x,y]=k.split(',').map(Number); for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){ const nx=x+dx,ny=y+dy,nk=key(nx,ny); if(!seen.has(nk)&&at(nx,ny).t==='gras'){ seen.add(nk); r.push([nx,ny]); } } } } return r; }
 const isGras=(x,y)=>at(x,y).t==='gras';
 const isPath=(x,y)=>PATHS.has(at(x,y).t);
 function syncAnimals(){
