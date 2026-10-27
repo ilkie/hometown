@@ -60,8 +60,16 @@ button.danger{color:var(--danger)}
 #credit{display:none;bottom:calc(132px + env(safe-area-inset-bottom,0px));right:max(12px,env(safe-area-inset-right,0px));font-size:11px;color:var(--panel-muted);padding:4px 8px}
 #msg{position:fixed;left:50%;transform:translateX(-50%);top:calc(70px + env(safe-area-inset-top,0px));background:var(--panel);border:2px solid var(--outline);border-radius:10px;padding:6px 12px;font-size:13px;font-weight:700;z-index:6;pointer-events:none;opacity:0;transition:opacity .2s;max-width:80vw;text-align:center}
 #msg.show{opacity:1}
-#dlg{position:fixed;inset:0;background:rgba(30,20,10,.45);z-index:20;display:flex;align-items:center;justify-content:center;padding:16px}
-#dlg[hidden]{display:none}
+#dlg,.ovl{position:fixed;inset:0;background:rgba(30,20,10,.45);z-index:20;display:flex;align-items:center;justify-content:center;padding:16px}
+#dlg[hidden],.ovl[hidden]{display:none}
+#exbox{background:var(--panel);border:2px solid var(--outline);border-radius:16px;padding:14px 16px;width:min(94vw,640px);max-height:88vh;overflow:auto;display:flex;flex-direction:column;gap:10px;box-shadow:0 6px 0 rgba(0,0,0,.18)}
+#exbox h2{margin:0;font-size:17px;display:flex;justify-content:space-between;align-items:center}
+.hint{margin:0;font-size:12.5px;color:var(--panel-muted);font-weight:600}
+#excards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+.excard{display:flex;flex-direction:column;gap:4px;text-align:left;padding:10px 12px;border-radius:12px;white-space:normal;line-height:1.25}
+.excard .ic{font-size:26px;line-height:1}
+.excard .nm{font-size:13.5px}
+.excard .ds{font-size:11.5px;color:var(--panel-muted);font-weight:600}
 #dlgbox{background:var(--panel);border:2px solid var(--outline);border-radius:16px;padding:14px 16px;width:min(92vw,520px);max-height:88vh;overflow:auto;display:flex;flex-direction:column;gap:12px;box-shadow:0 6px 0 rgba(0,0,0,.18)}
 #dlgbox h2{margin:0;font-size:17px;display:flex;justify-content:space-between;align-items:center}
 .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -111,7 +119,7 @@ body.mobile #toolNow{display:inline-block}
 </div>
 <button id="menuBtn" class="panel" type="button" title="Menu">&#9776;</button>
 <div id="acts" class="panel">
-  <button id="setBtn">Instellingen</button><button id="fsBtn">Volledig scherm</button><button id="reloadBtn" title="Haal de nieuwste versie op">Vernieuwen</button>
+  <button id="setBtn">Instellingen</button><button id="exBtn" title="Voorbeelddorpen ter inspiratie">&#127968; Voorbeelden</button><button id="fsBtn">Volledig scherm</button><button id="reloadBtn" title="Haal de nieuwste versie op">Vernieuwen</button>
   <button id="rotL" title="Draai linksom (Q)">&#8634; Draai</button><button id="rotR" title="Draai rechtsom (E)">Draai &#8635;</button>
   <button id="homeBtn" title="Terug naar het midden">Naar midden</button>
   <button id="modeBtn" title="Wissel tussen schuiven en doortekenen">Slepen: schuiven</button>
@@ -122,6 +130,13 @@ body.mobile #toolNow{display:inline-block}
 <div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"><span id="toolNow"></span></div><div id="tools"></div></div>
 <div id="credit" class="panel">Gebouwen: Cozy Isometric Town · Boerderij: Guilherme Laso · Tegels &amp; auto's: Kenney.nl</div>
 <div id="msg" role="status"></div>
+<div id="exdlg" class="ovl" hidden>
+  <div id="exbox" role="dialog" aria-label="Voorbeelddorpen">
+    <h2>&#127968; Voorbeelddorpen <button id="exClose">Sluiten</button></h2>
+    <p class="hint">Ter inspiratie. Een voorbeeld opent als nieuw dorp; je eigen dorp blijft bewaard onder Instellingen → Dorpen.</p>
+    <div id="excards"></div>
+  </div>
+</div>
 <div id="dlg" hidden>
   <div id="dlgbox" role="dialog" aria-label="Instellingen">
     <h2>Instellingen <button id="dlgClose">Sluiten</button></h2>
@@ -692,7 +707,13 @@ function buildExample(ex){
 }
 function openExample(ex){ save(); const id=newTown(ex.name); openTown(id); buildExample(ex); town.season=ex.season||'zomer'; town.theme=ex.theme||'geen'; town.daymode=ex.daymode||'auto'; if(town.daymode==='auto') clock=0.45; save(); renderSettings(); syncPopulation(); home(); dlg.hidden=true; msg('Voorbeeld geopend als nieuw dorp. Je eigen dorp staat nog onder Instellingen → Dorpen.',true); }
 
-const exEl=document.getElementById('examples'); for(const ex of EXAMPLES){ const b=document.createElement('button'); b.type='button'; b.textContent=ex.name; b.title=ex.desc; b.addEventListener('click',()=>openExample(ex)); exEl.append(b); }
+const EXICON={boerendorp:'\u{1F33E}',stadje:'\u{1F3D9}\uFE0F',haven:'\u{26F5}',kerstdorp:'\u{1F384}',halloween:'\u{1F383}',leeg:'\u{1F33F}'};
+const exEl=document.getElementById('examples'); for(const ex of EXAMPLES){ const b=document.createElement('button'); b.type='button'; b.textContent=(EXICON[ex.id]||'')+' '+ex.name; b.title=ex.desc; b.addEventListener('click',()=>openExample(ex)); exEl.append(b); }
+const exdlg=document.getElementById('exdlg'), excards=document.getElementById('excards');
+for(const ex of EXAMPLES){ const b=document.createElement('button'); b.type='button'; b.className='excard'; b.innerHTML='<span class="ic">'+(EXICON[ex.id]||'')+'</span><span class="nm">'+ex.name+'</span><span class="ds">'+ex.desc+'</span>'; b.addEventListener('click',()=>{ exdlg.hidden=true; openExample(ex); }); excards.append(b); }
+document.getElementById('exBtn').addEventListener('click',()=>{ exdlg.hidden=false; actsEl.classList.remove('open'); });
+document.getElementById('exClose').addEventListener('click',()=>{ exdlg.hidden=true; });
+exdlg.addEventListener('click',e=>{ if(e.target===exdlg) exdlg.hidden=true; });
 
 /* ---------- boot ---------- */
 function start(data){
