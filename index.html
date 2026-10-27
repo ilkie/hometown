@@ -79,6 +79,7 @@ input[type=text]{font:inherit;font-weight:700;border:2px solid var(--outline);bo
 </div>
 <div id="acts" class="panel">
   <button id="setBtn">Instellingen</button>
+  <button id="rotL" title="Draai linksom (Q)">&#8634; Draai</button><button id="rotR" title="Draai rechtsom (E)">Draai &#8635;</button>
   <button id="homeBtn" title="Terug naar het midden">Naar midden</button>
   <button id="modeBtn" title="Wissel tussen schuiven en doortekenen">Slepen: schuiven</button>
   <button id="undoBtn">Ongedaan maken</button>
@@ -225,16 +226,16 @@ const isWaterT=t=>t==='water'||t==='brug'||t==='railbrug'||t==='steiger';
 function nbMask(x,y,test){ let m=0; if(test(at(x,y-1))) m|=1; if(test(at(x+1,y))) m|=2; if(test(at(x,y+1))) m|=4; if(test(at(x-1,y))) m|=8; return m; }
 function groundSprite(x,y,cell){
   switch(cell.t){
-    case 'weg':   return ROADS[nbMask(x,y,c=>isRoadT(c.t))]||'road';
-    case 'brug':  { const m=nbMask(x,y,c=>isRoadT(c.t)); return (m&5)&&!(m&10)? 'bridgeEW' : (m&10)&&!(m&5)? 'bridgeNS' : 'bridgeEW'; }
-    case 'water': return WATERS[nbMask(x,y,c=>!isWaterT(c.t))]||'water';
-    case 'spoor': return RAILS[nbMask(x,y,c=>isRailT(c.t))]||'rail_NS';
-    case 'overweg': { const m=nbMask(x,y,c=>isRoadT(c.t)); return (m&5)&&!(m&10)? 'overweg_rNS':'overweg_rEW'; }
-    case 'railbrug': { const m=nbMask(x,y,c=>isRailT(c.t)); return (m&5)&&!(m&10)? 'railbrug_NS':'railbrug_EW'; }
-    case 'steiger': return PIERS[nbMask(x,y,c=>c.t==='steiger'||!isWaterT(c.t))]||'steiger_0';
+    case 'weg':   return ROADS[rotMask(nbMask(x,y,c=>isRoadT(c.t)))]||'road';
+    case 'brug':  { const m=rotMask(nbMask(x,y,c=>isRoadT(c.t))); return (m&5)&&!(m&10)? 'bridgeEW' : (m&10)&&!(m&5)? 'bridgeNS' : 'bridgeEW'; }
+    case 'water': return WATERS[rotMask(nbMask(x,y,c=>!isWaterT(c.t)))]||'water';
+    case 'spoor': return RAILS[rotMask(nbMask(x,y,c=>isRailT(c.t)))]||'rail_NS';
+    case 'overweg': { const m=rotMask(nbMask(x,y,c=>isRoadT(c.t))); return (m&5)&&!(m&10)? 'overweg_rNS':'overweg_rEW'; }
+    case 'railbrug': { const m=rotMask(nbMask(x,y,c=>isRailT(c.t))); return (m&5)&&!(m&10)? 'railbrug_NS':'railbrug_EW'; }
+    case 'steiger': return PIERS[rotMask(nbMask(x,y,c=>c.t==='steiger'||!isWaterT(c.t)))]||'steiger_0';
     case 'pad':   return 'plein';
     case 'voetpad': case 'kiezel': case 'zand': case 'aarde': return cell.t;
-    case 'fiets': return FIETS[nbMask(x,y,c=>c.t==='fiets')]||'fiets_0';
+    case 'fiets': return FIETS[rotMask(nbMask(x,y,c=>c.t==='fiets'))]||'fiets_0';
     case 'mais':  return 'akker';
     default:      { const g=groundSet(); return g? g : ((((x*7+y*13)%5)+5)%5? 'grass':'grass2'); }
   }
@@ -242,7 +243,18 @@ function groundSprite(x,y,cell){
 function season(){ if(!town) return 'zomer'; if(town.theme==='kerst') return 'winter'; return town.season||'zomer'; }
 function groundSet(){ if(town&&town.theme==='halloween') return 'grass_halloween'; const s=season(); return s==='zomer'? null : 'grass_'+s; }
 function blit(c,name,cx,cy){ const s=SPR[name]; if(!s||!s.im.complete||!s.im.naturalWidth) return; c.drawImage(s.im,cx+s.ax,cy+s.ay,s.sw,s.sh); }
-function tileCenter(x,y){ return [(x-y)*TW/2, (x+y)*TH/2]; }
+/* view rotation: R quarter turns. World tile (x,y) -> view tile; everything on screen is drawn in view space. */
+let R=0;
+function w2v(x,y){ switch(R){ case 1: return [-y,x]; case 2: return [-x,-y]; case 3: return [y,-x]; default: return [x,y]; } }
+function v2w(vx,vy){ switch(R){ case 1: return [vy,-vx]; case 2: return [-vx,-vy]; case 3: return [-vy,vx]; default: return [vx,vy]; } }
+function rotMask(m){ if(!R) return m; let o=0; for(let d=0;d<4;d++) if(m&(1<<d)) o|=1<<((d+R)%4); return o; }
+const vdir=d=>(d+R)%4;
+function tileCenter(x,y){ const [vx,vy]=w2v(x,y); return [(vx-vy)*TW/2, (vx+vy)*TH/2]; }
+function blockAnchor(ox,oy,s){ // the footprint tile that is drawn last in the current view
+  switch(R){ case 1: return [ox+s-1,oy]; case 2: return [ox,oy]; case 3: return [ox,oy+s-1]; default: return [ox+s-1,oy+s-1]; } }
+function blockPos(ox,oy,s){ const [ax,ay]=blockAnchor(ox,oy,s); const [cx]=tileCenter(ox+(s-1)/2,oy+(s-1)/2); const [,by]=tileCenter(ax,ay); return [cx,by+TH/2]; }
+function rotateView(step){ const [wx,wy]=toWorld(innerWidth/2,innerHeight/2); const vx=(wx/(TW/2)+wy/(TH/2))/2, vy=(wy/(TH/2)-wx/(TW/2))/2; const [fx,fy]=v2w(vx,vy);
+  R=((R+step)%4+4)%4; const [sx,sy]=tileCenter(fx,fy); view.ox=innerWidth/2-sx*view.s; view.oy=innerHeight/2-sy*view.s; requestDraw(); }
 
 /* ---------- cars & people ---------- */
 const DIRS=[[0,-1],[1,0],[0,1],[-1,0]], DNAME=['N','E','S','W'];
@@ -331,13 +343,13 @@ function stepAgents(dt){
 }
 function agentPos(a){ const [dx,dy]=DIRS[a.dir]; const [ax,ay]=tileCenter(a.x,a.y); const [bx,by]=tileCenter(a.x+dx,a.y+dy); return [ax+(bx-ax)*a.t, ay+(by-ay)*a.t, (a.t<0.5)?a.x:a.x+dx, (a.t<0.5)?a.y:a.y+dy]; }
 function agentsByTile(){ const m=new Map(); const put=(k,v)=>{ if(!m.has(k)) m.set(k,[]); m.get(k).push(v); };
-  for(const c of cars){ const [px,py,tx,ty]=agentPos(c); const [dx,dy]=DIRS[c.dir]; const sx=dx*TW/2-dy*TW/2, sy=dx*TH/2+dy*TH/2; const L=Math.hypot(sx,sy); const ox=-sy/L*11, oy=sx/L*11; put(key(tx,ty),{kind:'car',x:px+ox,y:py+oy,spr:c.key+'_'+DNAME[c.dir]}); }
+  for(const c of cars){ const [px,py,tx,ty]=agentPos(c); const [dx,dy]=DIRS[vdir(c.dir)]; const sx=dx*TW/2-dy*TW/2, sy=dx*TH/2+dy*TH/2; const L=Math.hypot(sx,sy); const ox=-sy/L*11, oy=sx/L*11; put(key(tx,ty),{kind:'car',x:px+ox,y:py+oy,spr:c.key+'_'+DNAME[vdir(c.dir)]}); }
   for(const tr of trains){ const segs=[{x:tr.x,y:tr.y,dir:tr.dir,spr:'loco'},...tr.trail.slice(0,2).map((s,i)=>({...s,spr:i?'wagon2':'wagon1'}))];
-    for(const sg of segs){ const [px,py,tx,ty]=agentPos({x:sg.x,y:sg.y,dir:sg.dir,t:tr.t}); put(key(tx,ty),{kind:'car',x:px,y:py,spr:sg.spr+'_'+DNAME[sg.dir]}); } }
+    for(const sg of segs){ const [px,py,tx,ty]=agentPos({x:sg.x,y:sg.y,dir:sg.dir,t:tr.t}); put(key(tx,ty),{kind:'car',x:px,y:py,spr:sg.spr+'_'+DNAME[vdir(sg.dir)]}); } }
   const now=performance.now()/1000;
-  for(const a of animals){ const [px,py,tx,ty]=agentPos(a); const bob=a.wait>0?0:Math.abs(Math.sin(now*5+a.ph))*1.5; put(key(tx,ty),{kind:'person',x:px,y:py-bob,spr:a.kind,flip:(a.dir===2||a.dir===3)}); }
-  for(const b of boats){ const [px,py,tx,ty]=agentPos(b); const bob=Math.sin(now*1.5+b.ph)*1.5; put(key(tx,ty),{kind:'person',x:px,y:py+bob,spr:b.key,flip:(b.dir===2||b.dir===3)}); }
-  for(const p of people){ const [px,py,tx,ty]=agentPos(p); const bob=p.wait>0?0:Math.abs(Math.sin((now*6)+p.ph))*2.5; put(key(tx,ty),{kind:'person',x:px,y:py-bob,spr:p.key,flip:p.flip}); }
+  for(const a of animals){ const [px,py,tx,ty]=agentPos(a); const bob=a.wait>0?0:Math.abs(Math.sin(now*5+a.ph))*1.5; put(key(tx,ty),{kind:'person',x:px,y:py-bob,spr:a.kind,flip:(vdir(a.dir)>=2)}); }
+  for(const b of boats){ const [px,py,tx,ty]=agentPos(b); const bob=Math.sin(now*1.5+b.ph)*1.5; put(key(tx,ty),{kind:'person',x:px,y:py+bob,spr:b.key,flip:(vdir(b.dir)>=2)}); }
+  for(const p of people){ const [px,py,tx,ty]=agentPos(p); const bob=p.wait>0?0:Math.abs(Math.sin((now*6)+p.ph))*2.5; put(key(tx,ty),{kind:'person',x:px,y:py-bob,spr:p.key,flip:(vdir(p.dir)>=2)}); }
   return m; }
 function drawAgent(a){ if(a.kind==='person'&&a.flip){ ctx.save(); ctx.translate(a.x,a.y); ctx.scale(-1,1); blit(ctx,a.spr,0,0); ctx.restore(); } else blit(ctx,a.spr,a.x,a.y); }
 let tickAcc=0;
@@ -360,10 +372,11 @@ document.addEventListener('pointerdown',()=>{ if(sound.on) sound.start(); },{pas
 let dpr=1;
 function resize(){ dpr=Math.min(2,window.devicePixelRatio||1); cv.width=innerWidth*dpr; cv.height=innerHeight*dpr; cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px'; requestDraw(); }
 function requestDraw(){ if(!drawPending){ drawPending=true; requestAnimationFrame(draw); } }
-function outline(c,x,y,s,col){ const [cx,cy]=tileCenter(x,y); const [bx,by]=tileCenter(x+s-1,y+s-1); c.lineWidth=3; c.strokeStyle=col; c.beginPath();
-  c.moveTo(cx,cy-TH/2); c.lineTo(cx+s*TW/2,cy-TH/2+s*TH/2); c.lineTo(bx,by+TH/2); c.lineTo(cx-s*TW/2,cy-TH/2+s*TH/2); c.closePath(); c.stroke(); }
+function outline(c,x,y,s,col){ const pts=[tileCenter(x,y),tileCenter(x+s-1,y),tileCenter(x,y+s-1),tileCenter(x+s-1,y+s-1)]; let top=pts[0],bot=pts[0],lef=pts[0],rig=pts[0];
+  for(const p of pts){ if(p[1]<top[1]) top=p; if(p[1]>bot[1]) bot=p; if(p[0]<lef[0]) lef=p; if(p[0]>rig[0]) rig=p; }
+  c.lineWidth=3; c.strokeStyle=col; c.beginPath(); c.moveTo(top[0],top[1]-TH/2); c.lineTo(rig[0]+TW/2,rig[1]); c.lineTo(bot[0],bot[1]+TH/2); c.lineTo(lef[0]-TW/2,lef[1]); c.closePath(); c.stroke(); }
 function connected(x,y,s){ for(let dy=-1;dy<=s;dy++) for(let dx=-1;dx<=s;dx++){ if((dx<0||dx>=s)&&(dy<0||dy>=s)) continue; if(dx>=0&&dx<s&&dy>=0&&dy<s) continue; const q=at(x+dx,y+dy).t; if(isRoadT(q)||PATHS.has(q)) return true; } return false; }
-function badge(c,x,y,s,top){ const [cx]=tileCenter(x,y); const [,by]=tileCenter(x+s-1,y+s-1); const spr=top?SPR['obj:'+top]:null; const h=spr?spr.sh:140; const bx=cx, byy=by+TH/2-h-14+Math.sin(performance.now()/300)*3;
+function badge(c,x,y,s,top){ const [bx0,by0]=blockPos(x,y,s); const spr=top?SPR['obj:'+top]:null; const h=spr?spr.sh:140; const bx=bx0, byy=by0-h-14+Math.sin(performance.now()/300)*3;
   c.beginPath(); c.arc(bx,byy,11,0,7); c.fillStyle='#f04a3a'; c.fill(); c.lineWidth=2.5; c.strokeStyle='#fff'; c.stroke();
   c.fillStyle='#fff'; c.font='bold 16px Nunito, sans-serif'; c.textAlign='center'; c.textBaseline='middle'; c.fillText('!',bx,byy+1); }
 function toWorld(sx,sy){ return [(sx-view.ox)/view.s,(sy-view.oy)/view.s]; }
@@ -380,19 +393,19 @@ function draw(){
   const vmin=Math.floor(wx0/(TW/2))-3, vmax=Math.ceil(wx1/(TW/2))+3;
   for(let u=umin; u<=umax; u++){
     const xs=Math.ceil((u+vmin)/2), xe=Math.floor((u+vmax)/2);
-    for(let x=xs; x<=xe; x++){
-      const y=u-x, cell=at(x,y), [cx,cy]=tileCenter(x,y);
+    for(let xv=xs; xv<=xe; xv++){
+      const [x,y]=v2w(xv,u-xv); const cell=at(x,y), [cx,cy]=tileCenter(x,y);
       blit(ctx,groundSprite(x,y,cell),cx,cy);
       if(hv&&hv.s===1&&hv.x===x&&hv.y===y) outline(ctx,x,y,1,'rgba(255,255,255,.95)');
       const ag=agents.get(key(x,y)); if(ag) for(const a of ag) if(a.kind==='car') drawAgent(a);
       if(TOOLS[cell.t]&&TOOLS[cell.t].variants){ const vs=TOOLS[cell.t].variants; blit(ctx,vs[(cell.v||0)%vs.length],cx,cy); if(TOOLS[cell.t].pop&&!connected(x,y,1)){ badge(ctx,x,y,1,null); } if(L<0.85){ if(TOOLS[cell.t].glow) glows.push([cx,cy-30,55,cell.t==='pompoenen'?'255,150,40':'255,220,120']); else if(TOOLS[cell.t].pop) glows.push([cx,cy-20,70,'255,210,120']); } }
-      if(cell.t==='hek'){ blit(ctx,HEKS[nbMask(x,y,c=>c.t==='hek')]||'hek_0',cx,cy); }
+      if(cell.t==='hek'){ blit(ctx,HEKS[rotMask(nbMask(x,y,c=>c.t==='hek'))]||'hek_0',cx,cy); }
       if(cell.t==='water'&&cell.o){ const vs=TOOLS[cell.o].variants; const bob=cell.o==='boot'||cell.o==='boei'? Math.sin(performance.now()/700+x*1.7+y*2.3)*1.5:0; blit(ctx,vs[(cell.v||0)%vs.length],cx,cy+bob); }
       if(cell.t==='b'&&cell.s===1){ blit(ctx,'obj:'+cell.k,cx,cy+TH/2); if(NEEDS_ROAD[cell.k]&&!connected(x,y,1)) badge(ctx,x,y,1,cell.k); }
-      if(cell.t==='b'&&cell.s>1&&L<0.85&&NEEDS_ROAD[cell.k]!==undefined){ const [bx,by]=tileCenter(x+cell.s-1,y+cell.s-1); glows.push([cx+(bx-cx)/2+0,by-10,110,'255,205,110']); }
-      if(cell.t==='o'){ const o=at(cell.x,cell.y); if(o.t==='b' && x===cell.x+o.s-1 && y===cell.y+o.s-1){ blit(ctx,'obj:'+o.k,tileCenter(cell.x,cell.y)[0],cy+TH/2); if(NEEDS_ROAD[o.k]&&!connected(cell.x,cell.y,o.s)) badge(ctx,cell.x,cell.y,o.s,o.k); } }
+      if(cell.t==='b'&&cell.s>1&&L<0.85&&NEEDS_ROAD[cell.k]!==undefined){ const [bx,by]=blockPos(x,y,cell.s); glows.push([bx,by-10,110,'255,205,110']); }
+      if(cell.t==='o'||(cell.t==='b'&&cell.s>1)){ const ox=cell.t==='b'?x:cell.x, oy=cell.t==='b'?y:cell.y; const o=at(ox,oy); const [ax,ay]=blockAnchor(ox,oy,o.s); if(o.t==='b' && x===ax && y===ay){ const [bx,by]=blockPos(ox,oy,o.s); blit(ctx,'obj:'+o.k,bx,by); if(NEEDS_ROAD[o.k]&&!connected(ox,oy,o.s)) badge(ctx,ox,oy,o.s,o.k); } }
       if(ag) for(const a of ag) if(a.kind==='person') drawAgent(a);
-      if(hv&&hv.s>1&&x===hv.x+hv.s-1&&y===hv.y+hv.s-1){ outline(ctx,hv.x,hv.y,hv.s,hv.ok?'rgba(255,255,255,.95)':'rgba(255,80,60,.95)'); }
+      if(hv&&hv.s>1){ const [ax,ay]=blockAnchor(hv.x,hv.y,hv.s); if(x===ax&&y===ay) outline(ctx,hv.x,hv.y,hv.s,hv.ok?'rgba(255,255,255,.95)':'rgba(255,80,60,.95)'); }
     }
   }
   // night: darken, then add warm light pools
@@ -451,7 +464,7 @@ function place(t,asTool){
 }
 
 /* ---------- input ---------- */
-function toTile(sx,sy){ const [wx,wy]=toWorld(sx,sy); return {x:Math.round((wx/(TW/2)+wy/(TH/2))/2), y:Math.round((wy/(TH/2)-wx/(TW/2))/2)}; }
+function toTile(sx,sy){ const [wx,wy]=toWorld(sx,sy); const vx=Math.round((wx/(TW/2)+wy/(TH/2))/2), vy=Math.round((wy/(TH/2)-wx/(TW/2))/2); const [x,y]=v2w(vx,vy); return {x,y}; }
 const SMIN=0.35, SMAX=2.5;
 const ptrs=new Map(); let drag=null, pinch=null;
 cv.addEventListener('pointerdown',e=>{
@@ -504,12 +517,13 @@ const modeBtn=document.getElementById('modeBtn');
 modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; modeBtn.textContent=paintMode?'Slepen: tekenen':'Slepen: schuiven'; modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
 function home(){ view.s=innerWidth<600?.45:.75; view.ox=innerWidth/2; view.oy=innerHeight/2; requestDraw(); }
 document.getElementById('homeBtn').addEventListener('click',home);
+document.getElementById('rotL').addEventListener('click',()=>rotateView(-1)); document.getElementById('rotR').addEventListener('click',()=>rotateView(1));
 document.getElementById('undoBtn').addEventListener('click',()=>{ const u=undo.pop(); if(u){ for(const ch of u) setCell(ch.x,ch.y,ch.c); saveSoon(); syncPopulation(); requestDraw(); } });
 const confirmEl=document.getElementById('confirm'), clearBtn=document.getElementById('clearBtn');
 clearBtn.addEventListener('click',()=>{ confirmEl.hidden=false; clearBtn.hidden=true; });
 document.getElementById('no').addEventListener('click',()=>{ confirmEl.hidden=true; clearBtn.hidden=false; });
 document.getElementById('yes').addEventListener('click',()=>{ cells=new Map(); undo=[]; save(); syncPopulation(); requestDraw(); confirmEl.hidden=true; clearBtn.hidden=false; });
-window.addEventListener('keydown',e=>{ if((e.metaKey||e.ctrlKey)&&e.key==='z'){ e.preventDefault(); document.getElementById('undoBtn').click(); } });
+window.addEventListener('keydown',e=>{ if(e.target&&e.target.tagName==='INPUT') return; if((e.metaKey||e.ctrlKey)&&e.key==='z'){ e.preventDefault(); document.getElementById('undoBtn').click(); } else if(e.key==='q'||e.key==='Q') rotateView(-1); else if(e.key==='e'||e.key==='E') rotateView(1); });
 
 /* ---------- settings dialog ---------- */
 const dlg=document.getElementById('dlg');
