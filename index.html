@@ -119,6 +119,7 @@ body.mobile #toolNow{display:inline-block}
 #modes button{padding:4px 9px;border-radius:999px;font-size:15px;line-height:1}
 #modes button.on{background:var(--sel);border-color:var(--sel);color:#fff}
 #modes #mDelete.on{background:var(--danger);border-color:var(--danger);color:#fff}
+#modes #mUndo{margin-left:4px} #modes #mUndo:disabled{opacity:.45;cursor:default}
 #movebar{left:50%;transform:translateX(-50%);top:calc(70px + env(safe-area-inset-top,0px));display:flex;gap:8px;align-items:center;font-size:13px;font-weight:700;z-index:7}
 #movebar[hidden]{display:none}
 body.mobile #movebar{top:calc(56px + env(safe-area-inset-top,0px))}
@@ -149,7 +150,7 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
   <button id="clearBtn" class="danger">&#128465;&#65039; <span class="lbl">Alles wissen</span></button>
   <span id="confirm" hidden>Zeker? <button id="yes" class="danger">Ja, wissen</button><button id="no">Nee</button></span>
 </div>
-<div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"><span id="modes"><button id="mSelect" type="button" title="Selecteren: tik op iets in je dorp voor info of om te verwijderen">&#128269;</button><button id="mRotate" type="button" title="Draaien: tik op een gebouw of object om het een kwartslag te draaien">&#8635;</button><button id="mDelete" type="button" class="danger" title="Slopen: tik op iets om het weg te halen">&#128465;&#65039;</button></span><span id="toolNow"></span></div><div id="tools"></div></div>
+<div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"><span id="modes"><button id="mSelect" type="button" title="Selecteren: tik op iets in je dorp voor info of om te verwijderen">&#128269;</button><button id="mRotate" type="button" title="Draaien: tik op een gebouw of object om het een kwartslag te draaien">&#8635;</button><button id="mUndo" type="button" title="Ongedaan maken (Cmd/Ctrl+Z)">&#8630;</button><button id="mDelete" type="button" class="danger" title="Slopen: tik op iets om het weg te halen">&#128465;&#65039;</button></span><span id="toolNow"></span></div><div id="tools"></div></div>
 <div id="rot" class="panel"><button id="rotL2" type="button" title="Draai linksom (Q)">&#8634;</button><button id="rotR2" type="button" title="Draai rechtsom (E)">&#8635;</button></div>
 <div id="credit" class="panel">Gebouwen: Cozy Isometric Town · Boerderij: Guilherme Laso · Tegels &amp; auto's: Kenney.nl</div>
 <div id="msg" role="status"></div>
@@ -185,7 +186,7 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 <script>
 (async function(){
 'use strict';
-const BUILD='20261027161307';
+const BUILD='20261027162045';
 const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u+'?v='+BUILD,{cache:'no-cache'}).then(r=>r.json())));
 const SHORT={'Slepen: schuiven':'Schuiven','Slepen: vlak vullen':'Vlak vullen','Ongedaan maken':'Ongedaan','Volledig scherm':'Volledig','Naar midden':'Midden','Alles wissen':'Wissen','Voorbeelden':'Voorbeelden','Vernieuwen':'Vernieuwen','Haal de nieuwste versie op':'Vernieuwen','Terug naar het midden':'Midden','Voorbeelddorpen ter inspiratie':'Voorbeelden','Wissel tussen schuiven en een vlak vullen':'Schuiven'};
 const TW=100, TH=50;
@@ -474,7 +475,7 @@ document.addEventListener('pointerdown',()=>{ if(sound.on) sound.start(); },{pas
 /* ---------- rendering ---------- */
 let dpr=1;
 function resize(){ dpr=Math.min(2,window.devicePixelRatio||1); cv.width=innerWidth*dpr; cv.height=innerHeight*dpr; cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px'; requestDraw(); }
-function requestDraw(){ if(!drawPending){ drawPending=true; requestAnimationFrame(draw); } }
+function requestDraw(){ if(!drawPending){ drawPending=true; requestAnimationFrame(draw); } const ub=document.getElementById('mUndo'); if(ub) ub.disabled=!undo.length; }
 function outline(c,x,y,s,col){ const pts=[tileCenter(x,y),tileCenter(x+s-1,y),tileCenter(x,y+s-1),tileCenter(x+s-1,y+s-1)]; let top=pts[0],bot=pts[0],lef=pts[0],rig=pts[0];
   for(const p of pts){ if(p[1]<top[1]) top=p; if(p[1]>bot[1]) bot=p; if(p[0]<lef[0]) lef=p; if(p[0]>rig[0]) rig=p; }
   c.lineWidth=3; c.strokeStyle=col; c.beginPath(); c.moveTo(top[0],top[1]-TH/2); c.lineTo(rig[0]+TW/2,rig[1]); c.lineTo(bot[0],bot[1]+TH/2); c.lineTo(lef[0]-TW/2,lef[1]); c.closePath(); c.stroke(); }
@@ -598,6 +599,7 @@ function setMode(m){ if(moving) cancelMove(); mode=m; document.getElementById('m
 document.getElementById('mSelect').addEventListener('click',()=>setMode(mode==='select'?'build':'select'));
 document.getElementById('mDelete').addEventListener('click',()=>setMode(mode==='delete'?'build':'delete'));
 document.getElementById('mRotate').addEventListener('click',()=>setMode(mode==='rotate'?'build':'rotate'));
+document.getElementById('mUndo').addEventListener('click',()=>{ document.getElementById('undoBtn').click(); msg(undo.length?'Ongedaan gemaakt':'Niets om ongedaan te maken'); });
 function tapTile(t){ if(!t) return; if(mode==='select'){ const d=describeAt(t.x,t.y); if(d&&d.name&&d.removable) showInfo(d); else hideInfo(); return; }
   if(mode==='rotate'){ if(rotateAt(t.x,t.y)) msg('Kwartslag gedraaid'); return; }
   if(mode==='move'){ dropAt(t.x,t.y); return; } if(mode==='delete'){ const d=describeAt(t.x,t.y); if(removeAt(t.x,t.y)) msg((d&&d.name?d.name:'Tegel')+' verwijderd'); return; } place(t); }
