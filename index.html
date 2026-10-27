@@ -1,17 +1,5 @@
-<!doctype html>
-<html lang="nl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="description" content="Mijn Dorp – een rustig bouwspel zonder geld of levels. Bouw je eigen dorp, boerderij, haven en spoorlijn.">
-<link rel="icon" href="assets/icon-192.png">
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="assets/icon-192.png">
-<meta name="theme-color" content="#8fc85a">
-<title>Mijn Dorp</title>
+<title>Blowtown</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&display=swap">
 <style>
 /* Layout: full-screen isometric sprite map on an endless grid; floating panels in the corners; two-row build palette (categories + items) docked at the bottom. */
@@ -118,7 +106,7 @@ body.mobile #toolNow{display:inline-block}
 <body>
 <canvas id="c"></canvas>
 <div id="hdr" class="panel">
-  <h1><span id="tname">Mijn Dorp</span> <small id="rank">Gehucht</small></h1>
+  <h1><span id="tname">Blowtown</span> <small id="rank">Gehucht</small></h1>
   <div id="stats"><span id="pop">0 inwoners</span><span id="bld">0 gebouwen</span></div>
   <div id="bar-outer"><div id="bar-inner"></div></div>
   <div id="next"></div>
@@ -147,8 +135,9 @@ body.mobile #toolNow{display:inline-block}
 </div>
 <div id="dlg" hidden>
   <div id="dlgbox" role="dialog" aria-label="Instellingen">
-    <h2>Instellingen <button id="dlgClose">Sluiten</button></h2>
+    <h2>Blowtown · Instellingen <button id="dlgClose">Sluiten</button></h2>
     <div class="row"><label for="nameIn">Naam van dit dorp</label><input type="text" id="nameIn" maxlength="40"></div>
+    <div class="row seg"><label>Of kies een naam</label><span id="nameSeg"></span></div>
     <div class="row seg"><label>Seizoen</label><span id="seasonSeg"></span></div>
     <div class="row seg"><label>Thema</label><span id="themeSeg"></span></div>
     <div class="row seg"><label>Dag en nacht</label><span id="daySeg"></span></div>
@@ -248,11 +237,11 @@ function seed(){
 /* towns: several saved villages, each with its own name, season, theme and day setting */
 let store={current:null,towns:{}}; let town=null;
 const SEASONS={zomer:'Zomer',lente:'Lente',herfst:'Herfst',winter:'Winter'}, THEMES={geen:'Geen',kerst:'Kerst',sinterklaas:'Sinterklaas',halloween:'Halloween'}, DAYMODES={auto:'Automatisch',dag:'Altijd dag',nacht:'Altijd nacht'};
-function newTown(name){ const id='t'+Date.now().toString(36)+Math.floor(Math.random()*1e4); store.towns[id]={name:name||'Mijn Dorp',cells:[],season:'zomer',theme:'geen',daymode:'auto'}; return id; }
+function newTown(name){ const id='t'+Date.now().toString(36)+Math.floor(Math.random()*1e4); store.towns[id]={name:name||'Blowtown',cells:[],season:'zomer',theme:'geen',daymode:'auto'}; return id; }
 function openTown(id){ if(!store.towns[id]) return; store.current=id; town=store.towns[id]; R=(town.view&&town.view.R)||0; cells=new Map(town.cells||[]); undo=[]; cars=[]; people=[]; trains=[]; boats=[]; animals=[]; destStamp=-1; document.getElementById('nameIn').value=town.name; renderSettings(); updateTitle(); }
 function load(){ try{ const raw=localStorage.getItem('dorpje.v9'); if(raw){ const d=JSON.parse(raw); if(d&&d.towns&&d.current&&d.towns[d.current]){ store=d; sound.on=(store.sound==='aan'); openTown(d.current); return true; } } }catch(e){} return false; }
 function save(){ if(town){ town.cells=[...cells.entries()]; town.view={s:view.s,ox:view.ox,oy:view.oy,R,w:innerWidth,h:innerHeight}; } try{ localStorage.setItem('dorpje.v9',JSON.stringify(store)); }catch(e){} }
-function updateTitle(){ document.getElementById('tname').textContent=town?town.name:'Mijn Dorp'; }
+function updateTitle(){ document.getElementById('tname').textContent=town?town.name:'Blowtown'; document.title=(town?town.name+' – ':'')+'Blowtown'; }
 let saveT=null; function saveSoon(){ clearTimeout(saveT); saveT=setTimeout(save,400); }
 const msgEl=document.getElementById('msg'); let msgT=null;
 function msg(s,long){ msgEl.textContent=s; msgEl.classList.add('show'); clearTimeout(msgT); msgT=setTimeout(()=>msgEl.classList.remove('show'),long?3200:1600); }
@@ -599,7 +588,9 @@ window.addEventListener('keydown',e=>{ if(e.target&&e.target.tagName==='INPUT') 
 /* ---------- settings dialog ---------- */
 const dlg=document.getElementById('dlg');
 function seg(el,opts,get,set){ el.textContent=''; for(const k in opts){ const b=document.createElement('button'); b.type='button'; b.textContent=opts[k]; b.classList.toggle('on',get()===k); b.addEventListener('click',()=>{ set(k); renderSettings(); saveSoon(); syncPopulation(); requestDraw(); }); el.append(b); } }
+const NAMES=['Blowtown','Hoogeveen','Wietersum','Blowdorp','Jointwijk','Hashelt','Groen Gras','Stonedam','Relaxum'];
 function renderSettings(){ if(!town) return; refreshQuick();
+  const ns=document.getElementById('nameSeg'); ns.textContent=''; for(const n of NAMES){ const b=document.createElement('button'); b.type='button'; b.textContent=n; b.classList.toggle('on',town.name===n); b.addEventListener('click',()=>{ town.name=n; document.getElementById('nameIn').value=n; updateTitle(); saveSoon(); renderSettings(); }); ns.append(b); }
   seg(document.getElementById('seasonSeg'),SEASONS,()=>town.season,v=>{ town.season=v; SNOWY=(v==='winter')||(town.theme==='kerst'); });
   seg(document.getElementById('themeSeg'),THEMES,()=>town.theme,v=>{ town.theme=v; SNOWY=(season()==='winter')||v==='kerst'; });
   seg(document.getElementById('daySeg'),DAYMODES,()=>town.daymode,v=>{ town.daymode=v; if(v==='auto') clock=0.45; });
@@ -626,11 +617,11 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){
     document.addEventListener('visibilitychange',()=>{ if(!document.hidden) reg.update().catch(()=>{}); });
   }).catch(()=>{});
 }
-document.getElementById('photoBtn').addEventListener('click',()=>{ const note=document.getElementById('photoNote'); try{ draw(); cv.toBlob(b=>{ if(!b){ note.textContent='Foto maken lukte niet.'; return; } const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(town.name||'dorp').replace(/[^\w\- ]+/g,'')+'.png'; document.body.append(a); a.click(); a.remove(); note.textContent='Opgeslagen in je downloads.'; setTimeout(()=>note.textContent='',3000); },'image/png'); }catch(e){ note.textContent='Foto maken lukte niet.'; } });
+document.getElementById('photoBtn').addEventListener('click',()=>{ const note=document.getElementById('photoNote'); try{ draw(); cv.toBlob(b=>{ if(!b){ note.textContent='Foto maken lukte niet.'; return; } const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(town.name||'blowtown').replace(/[^\w\- ]+/g,'')+'.png'; document.body.append(a); a.click(); a.remove(); note.textContent='Opgeslagen in je downloads.'; setTimeout(()=>note.textContent='',3000); },'image/png'); }catch(e){ note.textContent='Foto maken lukte niet.'; } });
 document.getElementById('setBtn').addEventListener('click',()=>{ renderSettings(); dlg.hidden=false; document.getElementById('nameIn').value=town.name; });
 document.getElementById('dlgClose').addEventListener('click',()=>{ dlg.hidden=true; });
 dlg.addEventListener('click',e=>{ if(e.target===dlg) dlg.hidden=true; });
-document.getElementById('nameIn').addEventListener('input',e=>{ town.name=e.target.value.trim()||'Mijn Dorp'; updateTitle(); saveSoon(); });
+document.getElementById('nameIn').addEventListener('input',e=>{ town.name=e.target.value.trim()||'Blowtown'; updateTitle(); saveSoon(); });
 document.getElementById('newTown').addEventListener('click',()=>{ save(); const id=newTown('Nieuw dorp '+Object.keys(store.towns).length); openTown(id); save(); syncPopulation(); home(); });
 const rc=document.getElementById('randConfirm');
 document.getElementById('randTown').addEventListener('click',()=>{ rc.hidden=false; });
@@ -731,7 +722,7 @@ exdlg.addEventListener('click',e=>{ if(e.target===exdlg) exdlg.hidden=true; });
 
 /* ---------- boot ---------- */
 function start(data){
-  if(data&&data.store){ store=data.store; openTown(store.current); if(data.clock!=null) clock=data.clock; } else if(!load()){ const id=newTown('Mijn Dorp'); openTown(id); seed(); save(); }
+  if(data&&data.store){ store=data.store; openTown(store.current); if(data.clock!=null) clock=data.clock; } else if(!load()){ const id=newTown('Blowtown'); openTown(id); seed(); save(); }
   if(data&&data.view) view=data.view; else if(town&&town.view&&Math.abs(town.view.w-innerWidth)<40&&Math.abs(town.view.h-innerHeight)<40){ view={s:town.view.s,ox:town.view.ox,oy:town.view.oy}; R=town.view.R||0; } else home();
   cv.classList.add('pan'); setCat('wonen'); setTool('b:cottage');
   window.claude?.hot?.snapshot?.(()=>{ save(); return {store,view,clock}; });

@@ -1,4 +1,4 @@
-# Mijn Dorp
+# Blowtown
 
 Een rustig isometrisch bouwspel in de browser, zonder geld, levels of wachttijden: alles is altijd beschikbaar.
 
