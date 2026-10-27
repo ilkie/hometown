@@ -4,7 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="description" content="Mijn Dorp – een rustig bouwspel zonder geld of levels. Bouw je eigen dorp, boerderij, haven en spoorlijn.">
-<link rel="icon" href="assets/gebouwen/cottage.png">
+<link rel="icon" href="assets/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<meta name="theme-color" content="#8fc85a">
 <title>Mijn Dorp</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&display=swap">
 <style>
@@ -76,6 +82,20 @@ input[type=text]{font:inherit;font-weight:700;border:2px solid var(--outline);bo
   #bar.collapsed #tools{display:none}
 }
 #barToggle{display:none}
+#menuBtn{display:none}
+body.mobile #hdr{width:auto;max-width:46vw;padding:4px 10px;gap:0;border-radius:10px;top:calc(6px + env(safe-area-inset-top,0px));left:max(6px,env(safe-area-inset-left,0px))}
+body.mobile #hdr h1{font-size:13px;gap:6px} body.mobile #hdr h1 small{font-size:10px} body.mobile #stats{font-size:10.5px} body.mobile #bar-outer{height:4px} body.mobile #hdr p,body.mobile #next{display:none}
+body.mobile #acts{display:none;flex-direction:column;align-items:stretch;max-width:none;width:190px;top:calc(44px + env(safe-area-inset-top,0px));right:max(6px,env(safe-area-inset-right,0px));padding:8px}
+body.mobile #acts.open{display:flex;max-height:calc(100vh - 120px);overflow-y:auto} body.mobile #acts button{width:100%;text-align:left}
+body.mobile #menuBtn{display:block;position:fixed;top:calc(6px + env(safe-area-inset-top,0px));right:max(6px,env(safe-area-inset-right,0px));z-index:6;padding:5px 10px;font-size:16px;line-height:1}
+body.mobile #bar{bottom:calc(6px + env(safe-area-inset-bottom,0px));left:max(6px,env(safe-area-inset-left,0px));right:max(6px,env(safe-area-inset-right,0px));padding:4px 6px;gap:4px;border-radius:12px}
+body.mobile #barToggle{display:none}
+body.mobile #cats{padding-right:2px} body.mobile #cats button{padding:3px 9px;font-size:11.5px}
+body.mobile #tools{display:none;flex-wrap:nowrap;overflow-x:auto;max-height:none}
+body.mobile #bar.open #tools{display:flex}
+body.mobile .tool{width:58px;font-size:9.5px;padding:2px} body.mobile .tool canvas{width:42px;height:42px}
+body.mobile #toolNow{display:inline-block}
+#toolNow{display:none;font-size:11px;font-weight:800;color:var(--panel-muted);padding:3px 6px;white-space:nowrap}
 @media (max-height:520px),(max-width:520px){ #barToggle{display:inline-block;position:absolute;right:8px;top:6px;padding:2px 8px;font-size:12px} #bar{position:fixed} }
 </style>
 </head>
@@ -88,8 +108,9 @@ input[type=text]{font:inherit;font-weight:700;border:2px solid var(--outline);bo
   <div id="next"></div>
   <p>Tik om te bouwen · sleep om te schuiven · scroll/knijp zoomt · rechtsklik wist · tik met een gebouw-tool op een gebouw voor info</p>
 </div>
+<button id="menuBtn" class="panel" type="button" title="Menu">&#9776;</button>
 <div id="acts" class="panel">
-  <button id="setBtn">Instellingen</button>
+  <button id="setBtn">Instellingen</button><button id="fsBtn">Volledig scherm</button>
   <button id="rotL" title="Draai linksom (Q)">&#8634; Draai</button><button id="rotR" title="Draai rechtsom (E)">Draai &#8635;</button>
   <button id="homeBtn" title="Terug naar het midden">Naar midden</button>
   <button id="modeBtn" title="Wissel tussen schuiven en doortekenen">Slepen: schuiven</button>
@@ -97,7 +118,7 @@ input[type=text]{font:inherit;font-weight:700;border:2px solid var(--outline);bo
   <button id="clearBtn" class="danger">Alles wissen</button>
   <span id="confirm" hidden>Zeker? <button id="yes" class="danger">Ja, wissen</button><button id="no">Nee</button></span>
 </div>
-<div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"></div><div id="tools"></div></div>
+<div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"><span id="toolNow"></span></div><div id="tools"></div></div>
 <div id="credit" class="panel">Gebouwen: Cozy Isometric Town · Boerderij: Guilherme Laso · Tegels &amp; auto's: Kenney.nl</div>
 <div id="msg" role="status"></div>
 <div id="dlg" hidden>
@@ -508,7 +529,7 @@ cv.addEventListener('wheel',e=>{ e.preventDefault(); const ns=Math.min(SMAX,Math
 
 /* ---------- toolbar ---------- */
 const catsEl=document.getElementById('cats'), toolsEl=document.getElementById('tools'); const catBtns={}, btns={};
-for(const k in CATS){ const b=document.createElement('button'); b.type='button'; b.textContent=CATS[k]; b.addEventListener('click',()=>setCat(k)); catsEl.append(b); catBtns[k]=b; }
+for(const k in CATS){ const b=document.createElement('button'); b.type='button'; b.textContent=CATS[k]; b.addEventListener('click',()=>setCat(k,true)); catsEl.append(b); catBtns[k]=b; }
 function drawIcon(c,k){
   c.clearRect(0,0,120,120); c.save(); c.translate(60,0); const t=TOOLS[k];
   if(t.building){ const s=SPR['obj:'+t.building]; if(!s) return; const sc=Math.min(104/s.sw,104/s.sh); c.scale(sc,sc); blit(c,'obj:'+t.building,0,s.sh+(120/sc-s.sh)/2); }
@@ -517,18 +538,23 @@ function drawIcon(c,k){
   else { c.scale(.95,.95); blit(c,t.icon,0,70); }
   c.restore();
 }
-function setCat(k){ cat=k; for(const q in catBtns) catBtns[q].classList.toggle('on',q===k); toolsEl.textContent='';
+function setCat(k,byUser){ cat=k; for(const q in catBtns) catBtns[q].classList.toggle('on',q===k); toolsEl.textContent=''; if(byUser&&document.body.classList.contains('mobile')) barEl.classList.toggle('open', !(barEl.classList.contains('open')&&catBtns[k].dataset.was==='1')); for(const q in catBtns) catBtns[q].dataset.was=(q===k)?'1':'0';
   for(const tk in TOOLS){ if(TOOLS[tk].cat!==k) continue; const b=document.createElement('button'); b.className='tool'; b.type='button'; b.id='tool-'+tk.replace(':','-');
     const ic=document.createElement('canvas'); ic.width=120; ic.height=120; const l=document.createElement('span'); l.textContent=TOOLS[tk].label;
-    b.append(ic,l); b.addEventListener('click',()=>setTool(tk)); toolsEl.append(b); btns[tk]={b,ic}; drawIcon(ic.getContext('2d'),tk); }
+    b.append(ic,l); b.addEventListener('click',()=>{ setTool(tk); if(document.body.classList.contains('mobile')) barEl.classList.remove('open'); }); toolsEl.append(b); btns[tk]={b,ic}; drawIcon(ic.getContext('2d'),tk); }
   for(const q in btns) btns[q].b.classList.toggle('on',q===tool);
 }
-function setTool(k){ tool=k; for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); if(innerHeight<520&&barEl&&!barEl.classList.contains('collapsed')){ /* keep open; user collapses with the arrow */ } }
+function setTool(k){ tool=k; for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); const tn=document.getElementById('toolNow'); if(tn) tn.textContent='▸ '+TOOLS[k].label; if(document.body.classList.contains('mobile')&&toolsEl.contains(document.activeElement)) setTimeout(()=>barEl.classList.remove('open'),120); }
 const modeBtn=document.getElementById('modeBtn');
 modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; modeBtn.textContent=paintMode?'Slepen: tekenen':'Slepen: schuiven'; modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
 function home(){ view.s=innerWidth<600?.45:.75; view.ox=innerWidth/2; view.oy=innerHeight/2; requestDraw(); }
 document.getElementById('homeBtn').addEventListener('click',home);
-const barEl=document.getElementById('bar'), barT=document.getElementById('barToggle'); barT.addEventListener('click',()=>{ barEl.classList.toggle('collapsed'); barT.innerHTML=barEl.classList.contains('collapsed')?'&#9650;':'&#9660;'; });
+const barEl=document.getElementById('bar'), barT=document.getElementById('barToggle'), actsEl=document.getElementById('acts'), menuBtn=document.getElementById('menuBtn');
+const mq=matchMedia('(max-height:560px),(max-width:600px)'); function applyMobile(){ document.body.classList.toggle('mobile',mq.matches); if(!mq.matches){ actsEl.classList.remove('open'); } } mq.addEventListener('change',applyMobile); applyMobile();
+menuBtn.addEventListener('click',()=>actsEl.classList.toggle('open'));
+cv.addEventListener('pointerdown',()=>{ actsEl.classList.remove('open'); if(document.body.classList.contains('mobile')) barEl.classList.remove('open'); });
+document.getElementById('fsBtn').addEventListener('click',()=>{ const el=document.documentElement; const req=el.requestFullscreen||el.webkitRequestFullscreen; if(document.fullscreenElement){ document.exitFullscreen(); return; } if(req){ req.call(el).catch(()=>msg('Volledig scherm lukt hier niet. Tip: zet de site op je beginscherm (Delen → Zet op beginscherm), dan opent hij zonder browserbalken.',true)); } else msg('Volledig scherm lukt hier niet. Tip: zet de site op je beginscherm (Delen → Zet op beginscherm), dan opent hij zonder browserbalken.',true); actsEl.classList.remove('open'); }); barT.addEventListener('click',()=>{ barEl.classList.toggle('collapsed'); barT.innerHTML=barEl.classList.contains('collapsed')?'&#9650;':'&#9660;'; });
+for(const b of actsEl.querySelectorAll('button')) b.addEventListener('click',()=>{ if(b.id!=='clearBtn'&&b.id!=='no') actsEl.classList.remove('open'); });
 document.getElementById('rotL').addEventListener('click',()=>rotateView(-1)); document.getElementById('rotR').addEventListener('click',()=>rotateView(1));
 document.getElementById('undoBtn').addEventListener('click',()=>{ const u=undo.pop(); if(u){ for(const ch of u) setCell(ch.x,ch.y,ch.c); saveSoon(); syncPopulation(); requestDraw(); } });
 const confirmEl=document.getElementById('confirm'), clearBtn=document.getElementById('clearBtn');
