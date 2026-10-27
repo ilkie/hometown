@@ -57,6 +57,11 @@ button.danger{color:var(--danger)}
 .tool span{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tool.on{border-color:var(--sel);background:color-mix(in srgb,var(--sel) 14%,var(--panel))}
 .tool:hover{border-color:var(--accent)}
+#rot{right:max(12px,env(safe-area-inset-right,0px));bottom:calc(150px + env(safe-area-inset-bottom,0px));display:flex;gap:6px;padding:6px;border-radius:999px}
+#rot button{width:42px;height:42px;border-radius:50%;font-size:22px;line-height:1;padding:0;display:grid;place-items:center}
+body.mobile #rot{bottom:calc(56px + env(safe-area-inset-bottom,0px));right:max(6px,env(safe-area-inset-right,0px));padding:4px}
+body.mobile #rot button{width:38px;height:38px;font-size:20px}
+body.mobile #bar.open ~ #rot{display:none}
 #credit{display:none;bottom:calc(132px + env(safe-area-inset-bottom,0px));right:max(12px,env(safe-area-inset-right,0px));font-size:11px;color:var(--panel-muted);padding:4px 8px}
 #msg{position:fixed;left:50%;transform:translateX(-50%);top:calc(70px + env(safe-area-inset-top,0px));background:var(--panel);border:2px solid var(--outline);border-radius:10px;padding:6px 12px;font-size:13px;font-weight:700;z-index:6;pointer-events:none;opacity:0;transition:opacity .2s;max-width:80vw;text-align:center}
 #msg.show{opacity:1}
@@ -120,7 +125,7 @@ body.mobile #toolNow{display:inline-block}
 <button id="menuBtn" class="panel" type="button" title="Menu">&#9776;</button>
 <div id="acts" class="panel">
   <button id="setBtn">Instellingen</button><button id="exBtn" title="Voorbeelddorpen ter inspiratie">&#127968; Voorbeelden</button><button id="fsBtn">Volledig scherm</button><button id="reloadBtn" title="Haal de nieuwste versie op">Vernieuwen</button>
-  <button id="rotL" title="Draai linksom (Q)">&#8634; Draai</button><button id="rotR" title="Draai rechtsom (E)">Draai &#8635;</button>
+  <button id="rotL" hidden>&#8634;</button><button id="rotR" hidden>&#8635;</button>
   <button id="homeBtn" title="Terug naar het midden">Naar midden</button>
   <button id="modeBtn" title="Wissel tussen schuiven en doortekenen">Slepen: schuiven</button>
   <button id="undoBtn">Ongedaan maken</button>
@@ -128,6 +133,7 @@ body.mobile #toolNow{display:inline-block}
   <span id="confirm" hidden>Zeker? <button id="yes" class="danger">Ja, wissen</button><button id="no">Nee</button></span>
 </div>
 <div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"><span id="toolNow"></span></div><div id="tools"></div></div>
+<div id="rot" class="panel"><button id="rotL2" type="button" title="Draai linksom (Q)">&#8634;</button><button id="rotR2" type="button" title="Draai rechtsom (E)">&#8635;</button></div>
 <div id="credit" class="panel">Gebouwen: Cozy Isometric Town · Boerderij: Guilherme Laso · Tegels &amp; auto's: Kenney.nl</div>
 <div id="msg" role="status"></div>
 <div id="exdlg" class="ovl" hidden>
@@ -574,6 +580,7 @@ menuBtn.addEventListener('click',()=>actsEl.classList.toggle('open'));
 cv.addEventListener('pointerdown',()=>{ actsEl.classList.remove('open'); if(document.body.classList.contains('mobile')) barEl.classList.remove('open'); });
 document.getElementById('fsBtn').addEventListener('click',()=>{ const el=document.documentElement; const req=el.requestFullscreen||el.webkitRequestFullscreen; if(document.fullscreenElement){ document.exitFullscreen(); return; } if(req){ req.call(el).catch(()=>msg('Volledig scherm lukt hier niet. Tip: zet de site op je beginscherm (Delen → Zet op beginscherm), dan opent hij zonder browserbalken.',true)); } else msg('Volledig scherm lukt hier niet. Tip: zet de site op je beginscherm (Delen → Zet op beginscherm), dan opent hij zonder browserbalken.',true); actsEl.classList.remove('open'); }); barT.addEventListener('click',()=>{ barEl.classList.toggle('collapsed'); barT.innerHTML=barEl.classList.contains('collapsed')?'&#9650;':'&#9660;'; });
 for(const b of actsEl.querySelectorAll('button')) b.addEventListener('click',()=>{ if(b.id!=='clearBtn'&&b.id!=='no') actsEl.classList.remove('open'); });
+document.getElementById('rotL2').addEventListener('click',()=>rotateView(-1)); document.getElementById('rotR2').addEventListener('click',()=>rotateView(1));
 document.getElementById('rotL').addEventListener('click',()=>rotateView(-1)); document.getElementById('rotR').addEventListener('click',()=>rotateView(1));
 document.getElementById('undoBtn').addEventListener('click',()=>{ const u=undo.pop(); if(u){ for(const ch of u) setCell(ch.x,ch.y,ch.c); saveSoon(); syncPopulation(); requestDraw(); } });
 const confirmEl=document.getElementById('confirm'), clearBtn=document.getElementById('clearBtn');
