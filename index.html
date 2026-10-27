@@ -111,6 +111,14 @@ body.mobile #tools{display:none;flex-wrap:nowrap;overflow-x:auto;max-height:none
 body.mobile #bar.open #tools{display:flex}
 body.mobile .tool{width:58px;font-size:9.5px;padding:2px} body.mobile .tool canvas{width:42px;height:42px}
 body.mobile #toolNow{display:inline-block}
+#modes{display:flex;gap:4px;flex:0 0 auto;padding-right:6px;border-right:2px solid var(--outline);margin-right:4px}
+#modes button{padding:4px 9px;border-radius:999px;font-size:15px;line-height:1}
+#modes button.on{background:var(--sel);border-color:var(--sel);color:#fff}
+#modes #mDelete.on{background:var(--danger);border-color:var(--danger);color:#fff}
+#info{left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:6px;max-width:min(92vw,360px);z-index:7}
+#info[hidden]{display:none}
+#infoTitle{font-weight:800;font-size:15px} #infoText{font-size:12.5px;color:var(--panel-muted);font-weight:600}
+body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 #toolNow{display:none;font-size:11px;font-weight:800;color:var(--panel-muted);padding:3px 6px;white-space:nowrap}
 @media (max-height:520px),(max-width:520px){ #barToggle{display:inline-block;position:absolute;right:8px;top:6px;padding:2px 8px;font-size:12px} #bar{position:fixed} }
 </style>
@@ -122,7 +130,7 @@ body.mobile #toolNow{display:inline-block}
   <div id="stats"><span id="pop">0 inwoners</span><span id="bld">0 gebouwen</span></div>
   <div id="bar-outer"><div id="bar-inner"></div></div>
   <div id="next"></div>
-  <p>Tik om te bouwen · sleep om te schuiven · scroll/knijp zoomt · rechtsklik wist · tik met een gebouw-tool op een gebouw voor info</p>
+  <p>Tik om te bouwen · sleep om te schuiven · scroll/knijp zoomt · &#128269; selecteren · &#128465;&#65039; slopen (of rechtsklik)</p>
 </div>
 <button id="menuBtn" class="panel" type="button" title="Menu">&#9776;</button>
 <div id="acts" class="panel">
@@ -134,10 +142,14 @@ body.mobile #toolNow{display:inline-block}
   <button id="clearBtn" class="danger">&#128465;&#65039; Alles wissen</button>
   <span id="confirm" hidden>Zeker? <button id="yes" class="danger">Ja, wissen</button><button id="no">Nee</button></span>
 </div>
-<div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"><span id="toolNow"></span></div><div id="tools"></div></div>
+<div id="bar" class="panel"><button id="barToggle" type="button" title="Palet inklappen">&#9660;</button><div id="cats"><span id="modes"><button id="mSelect" type="button" title="Selecteren: tik op iets in je dorp voor info of om te verwijderen">&#128269;</button><button id="mDelete" type="button" class="danger" title="Slopen: tik op iets om het weg te halen">&#128465;&#65039;</button></span><span id="toolNow"></span></div><div id="tools"></div></div>
 <div id="rot" class="panel"><button id="rotL2" type="button" title="Draai linksom (Q)">&#8634;</button><button id="rotR2" type="button" title="Draai rechtsom (E)">&#8635;</button></div>
 <div id="credit" class="panel">Gebouwen: Cozy Isometric Town · Boerderij: Guilherme Laso · Tegels &amp; auto's: Kenney.nl</div>
 <div id="msg" role="status"></div>
+<div id="info" class="panel" hidden>
+  <div id="infoTitle"></div><div id="infoText"></div>
+  <div class="row"><button id="infoDel" class="danger">&#128465;&#65039; Verwijderen</button><button id="infoClose">Sluiten</button></div>
+</div>
 <div id="exdlg" class="ovl" hidden>
   <div id="exbox" role="dialog" aria-label="Voorbeelddorpen">
     <h2>&#127968; Voorbeelddorpen <button id="exClose">Sluiten</button></h2>
@@ -165,7 +177,7 @@ body.mobile #toolNow{display:inline-block}
 <script>
 (async function(){
 'use strict';
-const BUILD='20261027121706';
+const BUILD='20261027151249';
 const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u+'?v='+BUILD,{cache:'no-cache'}).then(r=>r.json())));
 const TW=100, TH=50;
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
@@ -224,7 +236,7 @@ const RANKS=[[0,'Leeg land'],[1,'Gehucht'],[40,'Dorp'],[120,'Groot dorp'],[300,'
 
 /* ---------- state: a sparse, endless grid ---------- */
 const GRAS=Object.freeze({t:'gras'});
-let cells=new Map(), tool='b:cottage', cat='wonen', paintMode=false, undo=[];
+let cells=new Map(), tool='b:cottage', cat='wonen', paintMode=false, undo=[], mode='build', sel=null;
 let view={s:1,ox:0,oy:0}, hover=null, drawPending=false;
 const key=(x,y)=>x+','+y;
 const at=(x,y)=>cells.get(key(x,y))||GRAS;
@@ -489,7 +501,8 @@ function drawWeather(){
 
 /* ---------- placement ---------- */
 function hoverInfo(){
-  if(!hover) return null; const t=TOOLS[tool];
+  if(sel) return {x:sel.x,y:sel.y,s:sel.s,ok:true};
+  if(!hover) return null; if(mode!=='build'){ const d=describeAt(hover.x,hover.y); return d?{x:d.x,y:d.y,s:d.s,ok:mode==='select'}:{x:hover.x,y:hover.y,s:1,ok:true}; } const t=TOOLS[tool];
   if(t.building){ const s=t.size; return {x:hover.x,y:hover.y,s,ok:canPlace(hover.x,hover.y,s)}; }
   return {x:hover.x,y:hover.y,s:1,ok:true};
 }
@@ -498,6 +511,28 @@ function removeBuildingAt(x,y,changes){
   const c=at(x,y); let o=null; if(c.t==='b') o={x,y,s:c.s}; else if(c.t==='o'){ const oc=at(c.x,c.y); o={x:c.x,y:c.y,s:oc.s||1}; }
   if(!o) return; for(let dy=0;dy<o.s;dy++) for(let dx=0;dx<o.s;dx++){ const px=o.x+dx, py=o.y+dy; changes.push({x:px,y:py,c:at(px,py)}); setCell(px,py,null); }
 }
+function describeAt(x,y){ const c=at(x,y); if(c.t==='b'||c.t==='o'){ const ox=c.t==='b'?x:c.x, oy=c.t==='b'?y:c.y; const o=at(ox,oy); if(o.t!=='b') return null; const ok=connected(ox,oy,o.s); return {x:ox,y:oy,s:o.s,name:OBJ[o.k].label,text:NEEDS_ROAD[o.k]?(ok?'Bereikbaar via weg of pad.':'Niet bereikbaar: leg een weg of pad ernaast, dan verdwijnt het uitroepteken.'):'',removable:true}; }
+  if(c.t==='water'&&c.o) return {x,y,s:1,name:TOOLS[c.o].label,text:'Op het water.',removable:true};
+  if(TOOLS[c.t]){ const tl=TOOLS[c.t]; const ok=connected(x,y,1); return {x,y,s:1,name:tl.label,text:tl.pop?(ok?'Bereikbaar · '+tl.pop+' inwoners':'Niet bereikbaar: leg een weg of pad ernaast.'):'',removable:c.t!=='gras'}; }
+  const names={weg:'Weg',brug:'Brug',overweg:'Overweg',spoor:'Spoor',railbrug:'Spoorbrug',steiger:'Steiger',water:'Water',pad:'Plein',voetpad:'Voetpad',kiezel:'Kiezelpad',fiets:'Fietspad',zand:'Zand',aarde:'Aarde',mais:'Maïsveld',wiet:'Wietveld',hek:'Hek',o:'',gras:'Gras'};
+  return {x,y,s:1,name:names[c.t]||c.t,text:'',removable:c.t!=='gras'}; }
+const infoEl=document.getElementById('info');
+function showInfo(d){ sel=d; document.getElementById('infoTitle').textContent=d.name; document.getElementById('infoText').textContent=d.text; document.getElementById('infoDel').hidden=!d.removable; infoEl.hidden=false; requestDraw(); }
+function hideInfo(){ sel=null; infoEl.hidden=true; requestDraw(); }
+function removeAt(x,y){ const c=at(x,y); const changes=[];
+  if(c.t==='b'||c.t==='o'){ removeBuildingAt(x,y,changes); }
+  else if(c.t==='water'&&c.o){ changes.push({x,y,c}); setCell(x,y,{t:'water'}); }
+  else if(c.t==='brug'||c.t==='railbrug'){ changes.push({x,y,c}); setCell(x,y,{t:'water'}); }
+  else if(c.t==='overweg'){ changes.push({x,y,c}); setCell(x,y,{t:'weg'}); }
+  else if(c.t!=='gras'){ changes.push({x,y,c}); setCell(x,y,null); }
+  if(changes.length){ undo.push(changes); if(undo.length>200) undo.shift(); saveSoon(); syncPopulation(); requestDraw(); return true; } return false; }
+document.getElementById('infoDel').addEventListener('click',()=>{ if(sel){ removeAt(sel.x,sel.y); msg(sel.name+' verwijderd'); hideInfo(); } });
+document.getElementById('infoClose').addEventListener('click',hideInfo);
+function setMode(m){ mode=m; document.getElementById('mSelect').classList.toggle('on',m==='select'); document.getElementById('mDelete').classList.toggle('on',m==='delete'); for(const q in btns) btns[q].b.classList.toggle('on',m==='build'&&q===tool); cv.classList.toggle('pan',m==='build'&&!paintMode); if(m!=='select') hideInfo();
+  const tn=document.getElementById('toolNow'); if(tn) tn.textContent=m==='select'?'▸ Selecteren':m==='delete'?'▸ Slopen':'▸ '+TOOLS[tool].label; if(m!=='build'){ barEl.classList.remove('open'); msg(m==='select'?'Tik op iets in je dorp':'Tik op wat je wilt weghalen'); } }
+document.getElementById('mSelect').addEventListener('click',()=>setMode(mode==='select'?'build':'select'));
+document.getElementById('mDelete').addEventListener('click',()=>setMode(mode==='delete'?'build':'delete'));
+function tapTile(t){ if(!t) return; if(mode==='select'){ const d=describeAt(t.x,t.y); if(d&&d.name&&d.removable) showInfo(d); else hideInfo(); return; } if(mode==='delete'){ const d=describeAt(t.x,t.y); if(removeAt(t.x,t.y)) msg((d&&d.name?d.name:'Tegel')+' verwijderd'); return; } place(t); }
 function place(t,asTool){
   if(!t) return; let tk=asTool||tool; const tl=TOOLS[tk]; const changes=[];
   if(tl.building){
@@ -533,7 +568,7 @@ const ptrs=new Map(); let drag=null, pinch=null;
 cv.addEventListener('pointerdown',e=>{
   cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; pinch={d:Math.hypot(a.x-b.x,a.y-b.y),s:view.s,cx:(a.x+b.x)/2,cy:(a.y+b.y)/2,ox:view.ox,oy:view.oy}; drag=null; return; }
-  const painting=paintMode && TOOLS[tool].ground && e.button===0;
+  const painting=mode==='build' && paintMode && TOOLS[tool].ground && e.button===0;
   drag={x:e.clientX,y:e.clientY,ox:view.ox,oy:view.oy,moved:false,painting,button:e.button};
   if(painting) place(toTile(e.clientX,e.clientY));
 });
@@ -548,8 +583,8 @@ cv.addEventListener('pointermove',e=>{
 function endPtr(e){
   ptrs.delete(e.pointerId);
   if(pinch){ if(ptrs.size<2) pinch=null; drag=null; return; }
-  if(drag&&!drag.moved&&!drag.painting&&drag.button===0) place(toTile(e.clientX,e.clientY));
-  if(drag&&drag.button===2) place(toTile(e.clientX,e.clientY),'gras');
+  if(drag&&!drag.moved&&!drag.painting&&drag.button===0) tapTile(toTile(e.clientX,e.clientY));
+  if(drag&&drag.button===2){ const tt=toTile(e.clientX,e.clientY); const d=describeAt(tt.x,tt.y); if(removeAt(tt.x,tt.y)) msg((d&&d.name?d.name:'Tegel')+' verwijderd'); }
   drag=null; requestDraw(); saveSoon();
 }
 cv.addEventListener('pointerup',endPtr); cv.addEventListener('pointercancel',endPtr);
@@ -575,7 +610,7 @@ function setCat(k,byUser){ cat=k; for(const q in catBtns) catBtns[q].classList.t
     b.append(ic,l); b.addEventListener('click',()=>{ setTool(tk); if(document.body.classList.contains('mobile')) barEl.classList.remove('open'); }); toolsEl.append(b); btns[tk]={b,ic}; drawIcon(ic.getContext('2d'),tk); }
   for(const q in btns) btns[q].b.classList.toggle('on',q===tool);
 }
-function setTool(k){ tool=k; for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); const tn=document.getElementById('toolNow'); if(tn) tn.textContent='▸ '+TOOLS[k].label; if(document.body.classList.contains('mobile')&&toolsEl.contains(document.activeElement)) setTimeout(()=>barEl.classList.remove('open'),120); }
+function setTool(k){ tool=k; if(mode!=='build'){ mode='build'; document.getElementById('mSelect').classList.remove('on'); document.getElementById('mDelete').classList.remove('on'); hideInfo(); cv.classList.toggle('pan',!paintMode); } for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); const tn=document.getElementById('toolNow'); if(tn) tn.textContent='▸ '+TOOLS[k].label; if(document.body.classList.contains('mobile')&&toolsEl.contains(document.activeElement)) setTimeout(()=>barEl.classList.remove('open'),120); }
 const modeBtn=document.getElementById('modeBtn');
 modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; modeBtn.textContent=paintMode?'\u270F\uFE0F Slepen: tekenen':'\u270B Slepen: schuiven'; modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
 function home(){ view.s=innerWidth<600?.32:(innerWidth<1000?.42:.5); view.ox=innerWidth/2; view.oy=innerHeight/2; requestDraw(); }
@@ -584,6 +619,7 @@ const barEl=document.getElementById('bar'), barT=document.getElementById('barTog
 const mq=matchMedia('(max-height:560px),(max-width:600px)'); function applyMobile(){ document.body.classList.toggle('mobile',mq.matches); if(!mq.matches){ actsEl.classList.remove('open'); } } mq.addEventListener('change',applyMobile); applyMobile();
 menuBtn.addEventListener('click',()=>actsEl.classList.toggle('open'));
 cv.addEventListener('pointerdown',()=>{ actsEl.classList.remove('open'); if(document.body.classList.contains('mobile')) barEl.classList.remove('open'); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(mode!=='build') setMode('build'); hideInfo(); } });
 document.getElementById('fsBtn').addEventListener('click',()=>{ const el=document.documentElement; const req=el.requestFullscreen||el.webkitRequestFullscreen; if(document.fullscreenElement){ document.exitFullscreen(); return; } if(req){ req.call(el).catch(()=>msg('Volledig scherm lukt hier niet. Tip: zet de site op je beginscherm (Delen → Zet op beginscherm), dan opent hij zonder browserbalken.',true)); } else msg('Volledig scherm lukt hier niet. Tip: zet de site op je beginscherm (Delen → Zet op beginscherm), dan opent hij zonder browserbalken.',true); actsEl.classList.remove('open'); }); barT.addEventListener('click',()=>{ barEl.classList.toggle('collapsed'); barT.innerHTML=barEl.classList.contains('collapsed')?'&#9650;':'&#9660;'; });
 for(const b of actsEl.querySelectorAll('button')) b.addEventListener('click',()=>{ if(b.id!=='clearBtn'&&b.id!=='no') actsEl.classList.remove('open'); });
 const SEASON_ICON={zomer:'\u2600\uFE0F',lente:'\u{1F337}',herfst:'\u{1F342}',winter:'\u2744\uFE0F'};
