@@ -130,6 +130,7 @@ body.mobile #toolNow{display:inline-block}
     <div class="row seg"><label>Dag en nacht</label><span id="daySeg"></span></div>
     <div class="row seg"><label>Geluid</label><span id="soundSeg"></span></div>
     <div class="row"><button id="photoBtn">Foto van je dorp (PNG)</button><span id="photoNote" style="font-size:12px;color:var(--panel-muted)"></span></div>
+    <div class="row" id="installRow"><button id="installBtn">Installeer als app op je telefoon</button><span id="installNote" style="font-size:12px;color:var(--panel-muted)"></span></div>
     <div class="row"><label>Dorpen</label><div id="towns"></div></div>
     <div class="row"><button id="newTown">Nieuw leeg dorp</button><button id="randTown">Willekeurig dorp</button><span id="randConfirm" hidden>Dit vervangt het huidige dorp. <button id="randYes" class="danger">Doorgaan</button><button id="randNo">Nee</button></span></div>
   </div>
@@ -577,6 +578,13 @@ function renderSettings(){ if(!town) return;
     if(Object.keys(store.towns).length>1){ const del=document.createElement('button'); del.className='danger'; del.textContent='Verwijderen'; del.addEventListener('click',()=>{ if(del.dataset.arm){ delete store.towns[id]; if(id===store.current){ openTown(Object.keys(store.towns)[0]); } save(); renderSettings(); syncPopulation(); requestDraw(); } else { del.dataset.arm='1'; del.textContent='Zeker? Klik nogmaals'; } }); row.append(del); }
     list.append(row); }
 }
+/* install as app: Android browsers hand us a prompt we can trigger from our own button */
+let installEvt=null; window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt=e; });
+document.getElementById('installBtn').addEventListener('click',async()=>{ const note=document.getElementById('installNote');
+  if(window.matchMedia('(display-mode: standalone)').matches||navigator.standalone){ note.textContent='Je speelt al in de app-versie.'; return; }
+  if(installEvt){ installEvt.prompt(); const r=await installEvt.userChoice; note.textContent=r.outcome==='accepted'?'Geïnstalleerd. Open het huisje-icoon op je startscherm.':'Niet geïnstalleerd.'; installEvt=null; return; }
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent); note.textContent=ios?'iPhone: deelicoon → Zet op beginscherm.':'Open het browsermenu en kies "Toevoegen aan startscherm" (of "App installeren").'; });
+if('serviceWorker' in navigator&&location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 document.getElementById('photoBtn').addEventListener('click',()=>{ const note=document.getElementById('photoNote'); try{ draw(); cv.toBlob(b=>{ if(!b){ note.textContent='Foto maken lukte niet.'; return; } const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(town.name||'dorp').replace(/[^\w\- ]+/g,'')+'.png'; document.body.append(a); a.click(); a.remove(); note.textContent='Opgeslagen in je downloads.'; setTimeout(()=>note.textContent='',3000); },'image/png'); }catch(e){ note.textContent='Foto maken lukte niet.'; } });
 document.getElementById('setBtn').addEventListener('click',()=>{ renderSettings(); dlg.hidden=false; document.getElementById('nameIn').value=town.name; });
 document.getElementById('dlgClose').addEventListener('click',()=>{ dlg.hidden=true; });
