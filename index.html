@@ -177,7 +177,7 @@ body.mobile #info{bottom:calc(56px + env(safe-area-inset-bottom,0px))}
 <script>
 (async function(){
 'use strict';
-const BUILD='20261027152054';
+const BUILD='20261027153511';
 const [DATA,COZY,FARM]=await Promise.all(['assets/tiles.json','assets/gebouwen.json','assets/boerderij.json'].map(u=>fetch(u+'?v='+BUILD,{cache:'no-cache'}).then(r=>r.json())));
 const TW=100, TH=50;
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
@@ -196,7 +196,7 @@ const FIETS={0:'fiets_0',1:'fiets_N',2:'fiets_E',4:'fiets_S',8:'fiets_W',5:'fiet
 const PIERS={0:'steiger_0',1:'steiger_N',2:'steiger_E',4:'steiger_S',8:'steiger_W',5:'steiger_NS',10:'steiger_EW',3:'steiger_NE',6:'steiger_ES',12:'steiger_SW',9:'steiger_NW',15:'steiger_NESW',7:'steiger_NES',14:'steiger_ESW',13:'steiger_NSW',11:'steiger_NEW'};
 
 /* ---------- palette ---------- */
-const CATS={grond:'Grond',haven:'Water & haven',feest:'Feest',natuur:'Natuur',boerderij:'Boerderij',wonen:'Wonen',winkels:'Winkels',horeca:'Horeca & uitgaan',openbaar:'Openbaar',werk:'Werk'};
+const CATS={grond:'Grond',haven:'Water & haven',feest:'Feest',tuin:'Tuin',natuur:'Natuur',boerderij:'Boerderij',wonen:'Wonen',winkels:'Winkels',horeca:'Horeca & uitgaan',openbaar:'Openbaar',werk:'Werk'};
 const TOOLS={
   gras:  {label:'Gras',   cat:'grond', ground:true, icon:'grass'},
   weg:   {label:'Weg / brug', cat:'grond', ground:true, icon:'crossroad'},
@@ -214,6 +214,19 @@ const TOOLS={
   waterplanten:{label:'Waterplanten', cat:'haven', onWater:true, variants:['waterplanten']},
   vuurtoren:{label:'Vuurtoren', cat:'haven', variants:['vuurtoren']},
   fontein:{label:'Fontein', cat:'natuur', variants:['fontein']},
+  bloemen:{label:'Bloemperk', cat:'tuin', variants:['bloemen_mix','bloemen_rood','bloemen_geel','bloemen_roze','bloemen_paars','bloemen_wit']},
+  bloemen_rood:{label:'Rode bloemen', cat:'tuin', variants:['bloemen_rood']},
+  bloemen_geel:{label:'Gele bloemen', cat:'tuin', variants:['bloemen_geel']},
+  bloemen_roze:{label:'Roze bloemen', cat:'tuin', variants:['bloemen_roze']},
+  bloemen_paars:{label:'Paarse bloemen', cat:'tuin', variants:['bloemen_paars']},
+  bloemen_wit:{label:'Witte bloemen', cat:'tuin', variants:['bloemen_wit']},
+  tulpen:{label:'Tulpen', cat:'tuin', variants:['tulpen']},
+  heg:{label:'Heg', cat:'tuin', variants:['heg']},
+  bankje:{label:'Bankje', cat:'tuin', variants:['bankje']},
+  vijvertje:{label:'Vijvertje', cat:'tuin', variants:['vijvertje']},
+  bloesemboom:{label:'Bloesemboom', cat:'tuin', variants:['bloesemboom']},
+  moestuin:{label:'Moestuin', cat:'tuin', variants:['moestuin']},
+  bloempotten:{label:'Bloempotten', cat:'tuin', variants:['bloempotten']},
   lantaarn:{label:'Lantaarn', cat:'natuur', variants:['lantaarn'], glow:true},
   kerstboom:{label:'Kerstboom', cat:'feest', variants:['kerstboom'], glow:true},
   pakjes:{label:'Pakjes', cat:'feest', variants:['pakjes']},
@@ -373,7 +386,8 @@ function stepBoats(dt){ for(const b of boats){ let [dx,dy]=DIRS[b.dir]; if(!isWa
   b.t+=dt*b.speed; if(b.t>=1){ b.x+=dx; b.y+=dy; b.t-=1; const nd=pickDir(b.x,b.y,b.dir,isWaterFree); if(nd<0){ b.dead=true; continue; } b.dir=nd; } } boats=boats.filter(b=>!b.dead); }
 const isRoad=(x,y)=>isRoadT(at(x,y).t);
 const PATHS=new Set(['pad','voetpad','kiezel','zand','steiger','fiets']);
-const walkable=(x,y)=>{ const t=at(x,y).t; return t==='gras'||t==='boom'||PATHS.has(t)||(SNOWY&&t==='water'); };
+const GARDEN_WALK=new Set(['bloemen','bloemen_rood','bloemen_geel','bloemen_roze','bloemen_paars','bloemen_wit','tulpen','bankje','bloempotten','moestuin']);
+const walkable=(x,y)=>{ const t=at(x,y).t; return t==='gras'||t==='boom'||PATHS.has(t)||GARDEN_WALK.has(t)||(SNOWY&&t==='water'); };
 const isRail=(x,y)=>isRailT(at(x,y).t);
 function roadTiles(){ const r=[]; for(const [k,c] of cells) if(isRoadT(c.t)){ const [x,y]=k.split(',').map(Number); r.push([x,y]); } return r; }
 function walkTiles(){ const seen=new Set(), r=[];
