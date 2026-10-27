@@ -451,7 +451,7 @@ function draw(){
 }
 function drawWeather(){
   const theme=town?town.theme:'geen'; const now=performance.now()/1000; ctx.setTransform(dpr,0,0,dpr,0,0);
-  if(season()==='winter'||theme==='kerst'){ const light=season()!=='winter'; const n=light?28:80; while(snow.length<n) snow.push({x:Math.random(),y:Math.random(),s:light?1+Math.random()*1.5:1+Math.random()*2,v:light?0.008+Math.random()*0.012:0.02+Math.random()*0.03,ph:Math.random()*6}); if(snow.length>n) snow.length=n;
+  if(season()==='winter'||theme==='kerst'){ const light=season()!=='winter'; const n=light?55:80; while(snow.length<n) snow.push({x:Math.random(),y:Math.random(),s:light?1+Math.random()*1.8:1+Math.random()*2,v:light?0.014+Math.random()*0.016:0.02+Math.random()*0.03,ph:Math.random()*6}); if(snow.length>n) snow.length=n;
     ctx.fillStyle=light?'rgba(255,255,255,.7)':'rgba(255,255,255,.85)'; for(const f of snow){ const x=(f.x+Math.sin(now*0.7+f.ph)*0.01)*innerWidth, y=((f.y+now*f.v)%1)*innerHeight; ctx.beginPath(); ctx.arc(x,y,f.s,0,7); ctx.fill(); } } else snow.length=0;
   if(theme==='halloween'){ while(bats.length<7) bats.push({x:Math.random(),y:0.1+Math.random()*0.4,v:0.04+Math.random()*0.05,ph:Math.random()*6,dir:Math.random()<0.5?1:-1});
     for(const b of bats){ const x=((b.x+now*b.v*b.dir)%1+1)%1*innerWidth, y=(b.y+Math.sin(now*2+b.ph)*0.03)*innerHeight; const fr=Math.floor(now*6+b.ph)%2; const s=SPR['vleermuis'+fr]; if(s&&s.im.complete){ ctx.save(); ctx.translate(x,y); if(b.dir<0) ctx.scale(-1,1); ctx.drawImage(s.im,-20,-12,40,24); ctx.restore(); } } } else bats.length=0;
