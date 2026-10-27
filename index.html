@@ -247,9 +247,9 @@ function seed(){
 let store={current:null,towns:{}}; let town=null;
 const SEASONS={zomer:'Zomer',lente:'Lente',herfst:'Herfst',winter:'Winter'}, THEMES={geen:'Geen',kerst:'Kerst',sinterklaas:'Sinterklaas',halloween:'Halloween'}, DAYMODES={auto:'Automatisch',dag:'Altijd dag',nacht:'Altijd nacht'};
 function newTown(name){ const id='t'+Date.now().toString(36)+Math.floor(Math.random()*1e4); store.towns[id]={name:name||'Mijn Dorp',cells:[],season:'zomer',theme:'geen',daymode:'auto'}; return id; }
-function openTown(id){ if(!store.towns[id]) return; store.current=id; town=store.towns[id]; cells=new Map(town.cells||[]); undo=[]; cars=[]; people=[]; trains=[]; boats=[]; animals=[]; destStamp=-1; document.getElementById('nameIn').value=town.name; renderSettings(); updateTitle(); }
+function openTown(id){ if(!store.towns[id]) return; store.current=id; town=store.towns[id]; R=(town.view&&town.view.R)||0; cells=new Map(town.cells||[]); undo=[]; cars=[]; people=[]; trains=[]; boats=[]; animals=[]; destStamp=-1; document.getElementById('nameIn').value=town.name; renderSettings(); updateTitle(); }
 function load(){ try{ const raw=localStorage.getItem('dorpje.v9'); if(raw){ const d=JSON.parse(raw); if(d&&d.towns&&d.current&&d.towns[d.current]){ store=d; sound.on=(store.sound==='aan'); openTown(d.current); return true; } } }catch(e){} return false; }
-function save(){ if(town){ town.cells=[...cells.entries()]; } try{ localStorage.setItem('dorpje.v9',JSON.stringify(store)); }catch(e){} }
+function save(){ if(town){ town.cells=[...cells.entries()]; town.view={s:view.s,ox:view.ox,oy:view.oy,R,w:innerWidth,h:innerHeight}; } try{ localStorage.setItem('dorpje.v9',JSON.stringify(store)); }catch(e){} }
 function updateTitle(){ document.getElementById('tname').textContent=town?town.name:'Mijn Dorp'; }
 let saveT=null; function saveSoon(){ clearTimeout(saveT); saveT=setTimeout(save,400); }
 const msgEl=document.getElementById('msg'); let msgT=null;
@@ -311,7 +311,7 @@ function blockAnchor(ox,oy,s){ // the footprint tile that is drawn last in the c
   switch(R){ case 1: return [ox+s-1,oy]; case 2: return [ox,oy]; case 3: return [ox,oy+s-1]; default: return [ox+s-1,oy+s-1]; } }
 function blockPos(ox,oy,s){ const [ax,ay]=blockAnchor(ox,oy,s); const [cx]=tileCenter(ox+(s-1)/2,oy+(s-1)/2); const [,by]=tileCenter(ax,ay); return [cx,by+TH/2]; }
 function rotateView(step){ const [wx,wy]=toWorld(innerWidth/2,innerHeight/2); const vx=(wx/(TW/2)+wy/(TH/2))/2, vy=(wy/(TH/2)-wx/(TW/2))/2; const [fx,fy]=v2w(vx,vy);
-  R=((R+step)%4+4)%4; const [sx,sy]=tileCenter(fx,fy); view.ox=innerWidth/2-sx*view.s; view.oy=innerHeight/2-sy*view.s; requestDraw(); }
+  R=((R+step)%4+4)%4; const [sx,sy]=tileCenter(fx,fy); view.ox=innerWidth/2-sx*view.s; view.oy=innerHeight/2-sy*view.s; requestDraw(); saveSoon(); }
 
 /* ---------- cars & people ---------- */
 const DIRS=[[0,-1],[1,0],[0,1],[-1,0]], DNAME=['N','E','S','W'];
@@ -522,7 +522,7 @@ function place(t,asTool){
 
 /* ---------- input ---------- */
 function toTile(sx,sy){ const [wx,wy]=toWorld(sx,sy); const vx=Math.round((wx/(TW/2)+wy/(TH/2))/2), vy=Math.round((wy/(TH/2)-wx/(TW/2))/2); const [x,y]=v2w(vx,vy); return {x,y}; }
-const SMIN=0.35, SMAX=2.5;
+const SMIN=0.22, SMAX=2.5;
 const ptrs=new Map(); let drag=null, pinch=null;
 cv.addEventListener('pointerdown',e=>{
   cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -544,13 +544,13 @@ function endPtr(e){
   if(pinch){ if(ptrs.size<2) pinch=null; drag=null; return; }
   if(drag&&!drag.moved&&!drag.painting&&drag.button===0) place(toTile(e.clientX,e.clientY));
   if(drag&&drag.button===2) place(toTile(e.clientX,e.clientY),'gras');
-  drag=null; requestDraw();
+  drag=null; requestDraw(); saveSoon();
 }
 cv.addEventListener('pointerup',endPtr); cv.addEventListener('pointercancel',endPtr);
 cv.addEventListener('pointerleave',()=>{ hover=null; requestDraw(); });
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('wheel',e=>{ e.preventDefault(); const ns=Math.min(SMAX,Math.max(SMIN,view.s*Math.exp(-e.deltaY*0.0015)));
-  view.ox=e.clientX-(e.clientX-view.ox)*ns/view.s; view.oy=e.clientY-(e.clientY-view.oy)*ns/view.s; view.s=ns; requestDraw(); },{passive:false});
+  view.ox=e.clientX-(e.clientX-view.ox)*ns/view.s; view.oy=e.clientY-(e.clientY-view.oy)*ns/view.s; view.s=ns; requestDraw(); saveSoon(); },{passive:false});
 
 /* ---------- toolbar ---------- */
 const catsEl=document.getElementById('cats'), toolsEl=document.getElementById('tools'); const catBtns={}, btns={};
@@ -572,7 +572,7 @@ function setCat(k,byUser){ cat=k; for(const q in catBtns) catBtns[q].classList.t
 function setTool(k){ tool=k; for(const q in btns) btns[q].b.classList.toggle('on',q===k); requestDraw(); const tn=document.getElementById('toolNow'); if(tn) tn.textContent='▸ '+TOOLS[k].label; if(document.body.classList.contains('mobile')&&toolsEl.contains(document.activeElement)) setTimeout(()=>barEl.classList.remove('open'),120); }
 const modeBtn=document.getElementById('modeBtn');
 modeBtn.addEventListener('click',()=>{ paintMode=!paintMode; modeBtn.textContent=paintMode?'Slepen: tekenen':'Slepen: schuiven'; modeBtn.classList.toggle('on',paintMode); cv.classList.toggle('pan',!paintMode); });
-function home(){ view.s=innerWidth<600?.45:.75; view.ox=innerWidth/2; view.oy=innerHeight/2; requestDraw(); }
+function home(){ view.s=innerWidth<600?.32:(innerWidth<1000?.42:.5); view.ox=innerWidth/2; view.oy=innerHeight/2; requestDraw(); }
 document.getElementById('homeBtn').addEventListener('click',home);
 const barEl=document.getElementById('bar'), barT=document.getElementById('barToggle'), actsEl=document.getElementById('acts'), menuBtn=document.getElementById('menuBtn');
 const mq=matchMedia('(max-height:560px),(max-width:600px)'); function applyMobile(){ document.body.classList.toggle('mobile',mq.matches); if(!mq.matches){ actsEl.classList.remove('open'); } } mq.addEventListener('change',applyMobile); applyMobile();
@@ -725,7 +725,7 @@ exdlg.addEventListener('click',e=>{ if(e.target===exdlg) exdlg.hidden=true; });
 /* ---------- boot ---------- */
 function start(data){
   if(data&&data.store){ store=data.store; openTown(store.current); if(data.clock!=null) clock=data.clock; } else if(!load()){ const id=newTown('Mijn Dorp'); openTown(id); seed(); save(); }
-  if(data&&data.view) view=data.view; else home();
+  if(data&&data.view) view=data.view; else if(town&&town.view&&Math.abs(town.view.w-innerWidth)<40&&Math.abs(town.view.h-innerHeight)<40){ view={s:town.view.s,ox:town.view.ox,oy:town.view.oy}; R=town.view.R||0; } else home();
   cv.classList.add('pan'); setCat('wonen'); setTool('b:cottage');
   window.claude?.hot?.snapshot?.(()=>{ save(); return {store,view,clock}; });
   window.addEventListener('resize',resize); resize();
