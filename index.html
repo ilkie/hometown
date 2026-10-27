@@ -110,7 +110,7 @@ body.mobile #toolNow{display:inline-block}
 </div>
 <button id="menuBtn" class="panel" type="button" title="Menu">&#9776;</button>
 <div id="acts" class="panel">
-  <button id="setBtn">Instellingen</button><button id="fsBtn">Volledig scherm</button>
+  <button id="setBtn">Instellingen</button><button id="fsBtn">Volledig scherm</button><button id="reloadBtn" title="Haal de nieuwste versie op">Vernieuwen</button>
   <button id="rotL" title="Draai linksom (Q)">&#8634; Draai</button><button id="rotR" title="Draai rechtsom (E)">Draai &#8635;</button>
   <button id="homeBtn" title="Terug naar het midden">Naar midden</button>
   <button id="modeBtn" title="Wissel tussen schuiven en doortekenen">Slepen: schuiven</button>
@@ -585,7 +585,16 @@ document.getElementById('installBtn').addEventListener('click',async()=>{ const 
   if(window.matchMedia('(display-mode: standalone)').matches||navigator.standalone){ note.textContent='Je speelt al in de app-versie.'; return; }
   if(installEvt){ installEvt.prompt(); const r=await installEvt.userChoice; note.textContent=r.outcome==='accepted'?'Geïnstalleerd. Open het huisje-icoon op je startscherm.':'Niet geïnstalleerd.'; installEvt=null; return; }
   const ios=/iphone|ipad|ipod/i.test(navigator.userAgent); note.textContent=ios?'iPhone: deelicoon → Zet op beginscherm.':'Open het browsermenu en kies "Toevoegen aan startscherm" (of "App installeren").'; });
-if('serviceWorker' in navigator&&location.protocol==='https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+document.getElementById('reloadBtn').addEventListener('click',()=>{ save(); location.reload(); });
+if('serviceWorker' in navigator&&location.protocol==='https:'){
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    const offer=()=>{ msgEl.textContent='Nieuwe versie beschikbaar – tik hier om te vernieuwen'; msgEl.classList.add('show'); msgEl.style.pointerEvents='auto'; msgEl.style.cursor='pointer'; clearTimeout(msgT); msgEl.onclick=()=>{ save(); location.reload(); }; };
+    if(reg.waiting) offer();
+    reg.addEventListener('updatefound',()=>{ const nw=reg.installing; nw&&nw.addEventListener('statechange',()=>{ if(nw.state==='installed'&&navigator.serviceWorker.controller) offer(); }); });
+    setInterval(()=>reg.update().catch(()=>{}),10*60*1000);
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) reg.update().catch(()=>{}); });
+  }).catch(()=>{});
+}
 document.getElementById('photoBtn').addEventListener('click',()=>{ const note=document.getElementById('photoNote'); try{ draw(); cv.toBlob(b=>{ if(!b){ note.textContent='Foto maken lukte niet.'; return; } const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(town.name||'dorp').replace(/[^\w\- ]+/g,'')+'.png'; document.body.append(a); a.click(); a.remove(); note.textContent='Opgeslagen in je downloads.'; setTimeout(()=>note.textContent='',3000); },'image/png'); }catch(e){ note.textContent='Foto maken lukte niet.'; } });
 document.getElementById('setBtn').addEventListener('click',()=>{ renderSettings(); dlg.hidden=false; document.getElementById('nameIn').value=town.name; });
 document.getElementById('dlgClose').addEventListener('click',()=>{ dlg.hidden=true; });
